@@ -1,0 +1,16 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /payment-slips/{userId}/{fileName} {
+      allow read: if request.auth != null && request.auth.uid == userId
+        && firestore.get(/databases/(default)/documents/users/$(userId)).data.get('status', 'active') == 'active';
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && firestore.get(/databases/(default)/documents/users/$(userId)).data.get('status', 'active') == 'active'
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)|application/pdf')
+        && fileName.matches('[A-Za-z0-9]+\\.(jpg|png|webp|pdf)');
+      allow update, delete: if false;
+    }
+  }
+}

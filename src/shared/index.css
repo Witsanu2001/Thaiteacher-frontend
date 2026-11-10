@@ -1,0 +1,8 @@
+@import "tailwindcss";
+html{min-width:320px;min-height:100%;background:#f7f8fa}body{margin:0;min-width:320px;min-height:100vh;background:#f7f8fa}#root{min-height:100vh}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #73b4a3;outline-offset:2px}::selection{background:#d5eee7;color:#173f37}
+@custom-variant dark (&:where(.dark, .dark *));
+
+@font-face{font-family:"TH Sarabun PSK";src:url("/fonts/THSarabun.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"TH Sarabun PSK";src:url("/fonts/THSarabun%20Bold.ttf") format("truetype");font-weight:700;font-style:normal;font-display:swap}
+@theme{--font-sarabun:"TH Sarabun PSK",sans-serif}
+@page{size:A4 portrait;margin:0}
