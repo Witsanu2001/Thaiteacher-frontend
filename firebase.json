@@ -1,3 +1,4 @@
+
 {
   "firestore": {
     "rules": "firestore.rules"
@@ -16,7 +17,7 @@
       {
         "source": "/api/**",
         "run": {
-          "serviceId": "api-gateway",
+          "serviceId": "thaiteacher-gateway",
           "region": "asia-southeast1"
         }
       },
