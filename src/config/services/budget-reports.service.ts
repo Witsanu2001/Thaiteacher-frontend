@@ -2,7 +2,7 @@ import axios from "axios";
 import type { User } from "firebase/auth";
 import type { DailyReport } from "../../shared/funtion/types";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
+const API_URL = import.meta.env.VITE_API_URL ?? "";
 
 type StoredBudgetReport = DailyReport & { schoolName: string; updatedAt: string };
 

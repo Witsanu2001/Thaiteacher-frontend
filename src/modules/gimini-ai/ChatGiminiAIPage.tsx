@@ -41,7 +41,7 @@ const suggestions = [
   "เอกสารอะไรบ้างที่ควรแนบกับใบสำคัญจ่าย",
   "ช่วยตรวจสอบรายการรายรับ–รายจ่าย",
 ];
-const API_URL = (import.meta.env.VITE_API_URL ?? "http://localhost:8080").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 const makeMessage = (role: ChatMessage["role"], text: string): ChatMessage => ({
   id: crypto.randomUUID(),
