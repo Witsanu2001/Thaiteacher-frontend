@@ -1,5 +1,7 @@
 import { scopedStorage } from "../../shared/funtion/scopedStorage";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { User } from "firebase/auth";
+import { loadCashbookEntries } from "../../config/services/cashbook.service";
 import { createPortal } from "react-dom";
 import {
   ArrowRight,
@@ -38,16 +40,36 @@ export default function VoucherEvidencePage({
   school,
   fiscalYear,
   onNavigate,
+  user,
+  viewAsUid,
+  demo = false,
 }: {
   school: string;
   fiscalYear: number;
   onNavigate: () => void;
+  user?: User;
+  viewAsUid?: string;
+  demo?: boolean;
 }) {
-  const [entries] = useState<Entry[]>(() =>
+  const [entries, setEntries] = useState<Entry[]>(() =>
     readJson<Entry[]>(`school-cashbook:${school}`, []).filter(
       (entry) => fiscalYearOf(entry.date) === fiscalYear,
     ),
   );
+  useEffect(() => {
+    if (demo || !user) return;
+    let active = true;
+    void loadCashbookEntries(user, viewAsUid).then((remote) => {
+      if (!active) return;
+      const local = readJson<Entry[]>(`school-cashbook:${school}`, []);
+      const linked = readJson<string[]>(`school-cashbook:${school}:linked-ids`, []);
+      const remoteIds = new Set(remote.map((entry) => entry.id));
+      const legacy = local.filter((entry) => !remoteIds.has(entry.id) && !linked.includes(entry.id));
+      const localById = new Map(local.map((entry) => [entry.id, entry]));
+      setEntries([...legacy, ...remote.map((entry) => ({ ...entry, attachment: localById.get(entry.id)?.attachment }))].filter((entry) => fiscalYearOf(entry.date) === fiscalYear));
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [school, fiscalYear, user, viewAsUid, demo]);
   const [vouchers, setVouchers] = useState<Record<string, Voucher>>(() =>
     readJson<Record<string, Voucher>>(key(school), {}),
   );

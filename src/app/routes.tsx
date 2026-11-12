@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import type { User } from "firebase/auth";
 import type { UserProfile } from "../config/services/users.service";
 import SchoolFinancePage from "../modules/schoolFinance/SchoolFinancePage";
@@ -6,12 +6,14 @@ import { useFinancePage } from "../modules/schoolFinance/financePageState";
 import MoneyRegisterPage from "../modules/money-register/MoneyRegisterPage";
 import IncomeExpensePage from "../modules/income-expense/IncomeExpensePage";
 import VoucherEvidencePage from "../modules/vouchers/VoucherEvidencePage";
+import LoanContractsPage from "../modules/loan-contracts/LoanContractsPage";
 import ExportArchivePage from "../modules/exports/ExportArchivePage";
 import ReportFormSettingsPage from "../modules/report-form/ReportFormSettingsPage";
 import AdminDashboardPage from "../modules/admin-dashboard/AdminDashboardPage";
 import AdminUsersPage from "../modules/admin-users/AdminUsersPage";
 import AdminClearPage from "../modules/admin-clear/AdminClearPage";
 import AdminSupportPage from "../modules/admin-support/AdminSupportPage";
+import AdminAnnouncementsPage from "../modules/admin-announcements/AdminAnnouncementsPage";
 import ContactPage from "../modules/contact/ContactPage";
 import ChatGiminiAIPage from "../modules/gimini-ai/ChatGiminiAIPage";
 import AdminHeader from "../shared/components/AdminHeader";
@@ -26,17 +28,37 @@ function Register() {
       school={value.school}
       reports={value.yearReports}
       fiscalYear={value.fiscalYear}
-      onNavigate={() => value.onNavigate("รายรับ–รายจ่าย")}
+      user={value.user}
+      viewAsUid={value.viewAsUid}
+      demo={value.demo}
+      onNavigate={(category) =>
+        value.onNavigate("รายรับ–รายจ่าย", category)
+      }
     />
   );
 }
 function IncomeExpense() {
   const value = useFinancePage();
+  const location = useLocation();
+  const routeState = location.state;
+  const initialCategory =
+    routeState &&
+    typeof routeState === "object" &&
+    "incomeExpenseCategory" in routeState &&
+    typeof routeState.incomeExpenseCategory === "string"
+      ? routeState.incomeExpenseCategory
+      : undefined;
   return (
     <IncomeExpensePage
+      key={value.schoolKey}
       school={value.school}
       categories={value.categories}
       fiscalYear={value.fiscalYear}
+      reports={value.allReports}
+      initialCategory={initialCategory}
+      user={value.user}
+      viewAsUid={value.viewAsUid}
+      demo={value.demo}
     />
   );
 }
@@ -47,15 +69,25 @@ function Vouchers() {
       school={value.school}
       fiscalYear={value.fiscalYear}
       onNavigate={() => value.onNavigate("รายรับ–รายจ่าย")}
+      user={value.user}
+      viewAsUid={value.viewAsUid}
+      demo={value.demo}
     />
   );
+}
+function LoanContracts() {
+  const value = useFinancePage();
+  return <LoanContractsPage key={value.schoolKey} school={value.school} reports={value.allReports} user={value.user} viewAsUid={value.viewAsUid} demo={value.demo} />;
 }
 function Exports() {
   const value = useFinancePage();
   return (
     <ExportArchivePage
       school={value.school}
-      fiscalYear={value.fiscalYear}
+      reports={value.allReports}
+      user={value.user}
+      viewAsUid={value.viewAsUid}
+      demo={value.demo}
       onPreviewCurrent={value.onPreview}
     />
   );
@@ -95,7 +127,7 @@ export default function AppRoutes({
   onMenu: () => void;
   dark: boolean;
   onToggleDark: () => void;
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, incomeExpenseCategory?: string) => void;
   onManage?: () => void;
   onView?: (profile: UserProfile) => void;
   viewBusy?: boolean;
@@ -160,6 +192,10 @@ export default function AppRoutes({
         element={isAdmin && user ? <AdminSupportPage user={user} onMenu={onMenu} dark={dark} onToggleDark={onToggleDark} /> : <Navigate to="/finance/school-finance" replace />}
       />
       <Route
+        path="/admin/announcements"
+        element={isAdmin && user ? <AdminAnnouncementsPage user={user} onMenu={onMenu} dark={dark} onToggleDark={onToggleDark} /> : <Navigate to="/finance/school-finance" replace />}
+      />
+      <Route
         path="/admin/gimini-ai"
         element={
           isAdmin && user ? (
@@ -204,6 +240,7 @@ export default function AppRoutes({
         <Route path="money-register" element={<Register />} />
         <Route path="income-expense" element={<IncomeExpense />} />
         <Route path="vouchers" element={<Vouchers />} />
+        <Route path="loan-contracts" element={<LoanContracts />} />
         <Route path="exports" element={<Exports />} />
         <Route path="report-settings" element={<ReportForm />} />
         <Route path="contact" element={<ContactPage user={user} demo={demo} />} />

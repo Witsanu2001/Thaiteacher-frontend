@@ -1,5 +1,6 @@
 import { scopedStorage } from "../../shared/funtion/scopedStorage";
 import { Fragment, useCallback, useEffect, useState } from "react";
+import axios from "axios";
 import type { User } from "firebase/auth";
 import { Outlet, useLocation } from "react-router-dom";
 import {
@@ -17,6 +18,8 @@ import {
 import {
   X,
   GraduationCap,
+  Eye,
+  Pencil,
   FileSpreadsheet,
   Wallet,
   Banknote,
@@ -60,6 +63,10 @@ const exampleRows: Row[] = [
 ].map((r) => ({ ...r, cash: 0, bank: 0, government: 0, note: "" }));
 const input =
   "w-full rounded-lg border border-slate-300 bg-white p-3 text-base text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-white";
+const reportSaveError = (error: unknown, fallback: string) =>
+  axios.isAxiosError(error) && error.response?.status === 409
+    ? "ข้อมูลวันที่นี้ถูกแก้จากอีกเครื่องแล้ว ระบบไม่บันทึกทับ กรุณาโหลดหน้าใหม่เพื่อตรวจยอดล่าสุด"
+    : fallback;
 const cacheSchools = (schools: School[]) => {
   try {
     scopedStorage.setItem("school-finances-v2", JSON.stringify(schools));
@@ -81,7 +88,7 @@ export default function SchoolFinancePage({
   onMenu: () => void;
   dark: boolean;
   onToggleDark: () => void;
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, incomeExpenseCategory?: string) => void;
   initialSchoolName: string;
   user?: User;
   viewAsUid?: string;
@@ -243,6 +250,22 @@ export default function SchoolFinancePage({
       cancelled = true;
     };
   }, [initialSchoolName, loadReports, saveReports]);
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const updated = await loadReports();
+        if (!active) return;
+        setSchools((current) => {
+          const next = current.map((item) => item.name === initialSchoolName ? { ...item, reports: updated } : item);
+          cacheSchools(next);
+          return next;
+        });
+      } catch { if (active) setSyncError("อัปเดตรายงานหลังบันทึกสัญญาไม่สำเร็จ กรุณาโหลดหน้าใหม่"); }
+    };
+    window.addEventListener("finance-report-changed", refresh);
+    return () => { active = false; window.removeEventListener("finance-report-changed", refresh); };
+  }, [initialSchoolName, loadReports]);
   const school = schools[schoolIndex];
   useEffect(() => {
     if (school?.name)
@@ -369,8 +392,8 @@ export default function SchoolFinancePage({
       setSchools(next);
       setRows(updatedRows);
       setCellEdit(null);
-    } catch {
-      setCellError("บันทึกขึ้นระบบไม่ได้ กรุณาตรวจสอบการเชื่อมต่อแล้วลองใหม่");
+    } catch (error) {
+      setCellError(reportSaveError(error, "บันทึกขึ้นระบบไม่ได้ กรุณาตรวจสอบการเชื่อมต่อแล้วลองใหม่"));
     } finally {
       setSavingReport(false);
     }
@@ -429,8 +452,8 @@ export default function SchoolFinancePage({
       setDate(carryTarget);
       setSelectedFiscalYear(fiscalYearOf(carryTarget));
       setCarryOpen(false);
-    } catch {
-      setCarryError("บันทึกยอดยกมาขึ้นระบบไม่ได้ กรุณาตรวจสอบการเชื่อมต่อ");
+    } catch (error) {
+      setCarryError(reportSaveError(error, "บันทึกยอดยกมาขึ้นระบบไม่ได้ กรุณาตรวจสอบการเชื่อมต่อ"));
     } finally {
       setSavingReport(false);
     }
@@ -497,9 +520,7 @@ export default function SchoolFinancePage({
         `บันทึกและตรวจสอบรายงาน ${imported.reports.length} วันบนระบบแล้ว${imported.skipped.length ? ` · ข้าม ${imported.skipped.length} ชีตที่ไม่ตรงรูปแบบ` : ""}`,
       );
     } catch (error) {
-      setImportMessage(
-        error instanceof Error ? error.message : "นำเข้า Excel ไม่สำเร็จ",
-      );
+      setImportMessage(reportSaveError(error, error instanceof Error ? error.message : "นำเข้า Excel ไม่สำเร็จ"));
     } finally {
       setImporting(false);
     }
@@ -605,8 +626,8 @@ export default function SchoolFinancePage({
       setDate(reportDate);
       setSelectedFiscalYear(fiscalYearOf(reportDate));
       setOpen(false);
-    } catch {
-      setError("บันทึกขึ้นระบบไม่ได้ กรุณาตรวจสอบการเชื่อมต่อแล้วลองใหม่");
+    } catch (error) {
+      setError(reportSaveError(error, "บันทึกขึ้นระบบไม่ได้ กรุณาตรวจสอบการเชื่อมต่อแล้วลองใหม่"));
     } finally {
       setSavingReport(false);
     }
@@ -669,8 +690,8 @@ export default function SchoolFinancePage({
       setSelectedFiscalYear(year);
       setDate(carryBalance ? firstDate : "");
       return undefined;
-    } catch {
-      return "เปิดปีงบประมาณไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อระบบ";
+    } catch (error) {
+      return reportSaveError(error, "เปิดปีงบประมาณไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อระบบ");
     }
   };
   const downloadConflictBackup = () => {
@@ -752,6 +773,10 @@ export default function SchoolFinancePage({
             fiscalYear: selectedFiscalYear,
             report,
             yearReports,
+            allReports: school?.reports || [],
+            user,
+            viewAsUid,
+            demo,
             categories: [
               ...new Set(
                 (report?.rows || school?.reports.at(-1)?.rows || exampleRows)
@@ -887,15 +912,24 @@ export default function SchoolFinancePage({
                   </label>
                   <button
                     onClick={() => begin("template")}
-                    className="h-12 min-w-40 rounded-xl border border-slate-300 bg-white px-4 text-sm font-medium motion-safe:transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                    className="inline-flex h-12 min-w-40 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-medium motion-safe:transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900"
                   >
-                    แก้ไขรายการฟอร์ม
+                    <Pencil size={16} />
+                    แก้ไขฟอร์ม
                   </button>
                   <button
                     onClick={openCarryForward}
                     className="h-12 min-w-40 rounded-xl border border-blue-600 px-4 text-sm font-medium text-blue-700 motion-safe:transition-all hover:-translate-y-0.5 hover:bg-blue-50 hover:shadow-sm dark:text-blue-300 dark:hover:bg-blue-950"
                   >
                     + เพิ่มวันใหม่
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewOpen(true)}
+                    className="inline-flex h-12 min-w-40 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-medium text-white shadow-sm motion-safe:transition-all hover:-translate-y-0.5 hover:bg-blue-800"
+                  >
+                    <Eye size={18} />
+                    Preview
                   </button>
                 </div>
               </div>
@@ -1055,15 +1089,6 @@ export default function SchoolFinancePage({
                 </table>
               </div>
             </section>
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setPreviewOpen(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-5 py-3 font-medium text-white shadow-sm hover:bg-blue-800"
-              >
-                <FileSpreadsheet size={19} /> ดูตัวอย่างและส่งออกตาราง
-              </button>
-            </div>
           </>
         )}
               </>

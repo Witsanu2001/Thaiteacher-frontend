@@ -1,4 +1,10 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { User } from "firebase/auth";
+import { loadLoanContracts } from "../../config/services/loan-contracts.service";
+import { loadCashbookEntries } from "../../config/services/cashbook.service";
+import { loanLedgerEntries } from "../loan-contracts/loanLedger";
+import type { LoanContract } from "../loan-contracts/loanContract";
+import { scopedStorage } from "../../shared/funtion/scopedStorage";
 import { ArrowRight, Search } from "lucide-react";
 import { thaiDate } from "../../shared/funtion/thaiDate";
 import {
@@ -20,11 +26,17 @@ export default function MoneyRegisterPage({
   reports,
   fiscalYear,
   onNavigate,
+  user,
+  viewAsUid,
+  demo = false,
 }: {
   school: string;
   reports: Report[];
   fiscalYear: number;
-  onNavigate: () => void;
+  onNavigate: (category: string) => void;
+  user?: User;
+  viewAsUid?: string;
+  demo?: boolean;
 }) {
   const ordered = useMemo(
     () => [...reports].sort((a, b) => a.date.localeCompare(b.date)),
@@ -41,9 +53,36 @@ export default function MoneyRegisterPage({
     );
   };
   const [query, setQuery] = useState("");
-  const [entries] = useState<Entry[]>(() =>
+  const [entries, setEntries] = useState<Entry[]>(() =>
     readJson<Entry[]>(`school-cashbook:${school}`, []),
   );
+  useEffect(() => {
+    if (demo || !user) return;
+    let active = true;
+    void loadCashbookEntries(user, viewAsUid).then((remote) => {
+      if (!active) return;
+      const local = readJson<Entry[]>(`school-cashbook:${school}`, []);
+      const linked = readJson<string[]>(`school-cashbook:${school}:linked-ids`, []);
+      const remoteIds = new Set(remote.map((entry) => entry.id));
+      const legacy = local.filter((entry) => !remoteIds.has(entry.id) && !linked.includes(entry.id));
+      const localById = new Map(local.map((entry) => [entry.id, entry]));
+      setEntries([...legacy, ...remote.map((entry) => ({ ...entry, attachment: localById.get(entry.id)?.attachment }))]);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [school, user, viewAsUid, demo]);
+  const [loanEntries, setLoanEntries] = useState<Entry[]>([]);
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const contracts: LoanContract[] = demo ? JSON.parse(scopedStorage.getItem(`school-loan-contracts:${school}`) || "[]") : user ? await loadLoanContracts(user, viewAsUid) : [];
+        if (active) setLoanEntries(loanLedgerEntries(contracts));
+      } catch { if (active) setLoanEntries([]); }
+    };
+    void refresh();
+    window.addEventListener("loan-contracts-changed", refresh);
+    return () => { active = false; window.removeEventListener("loan-contracts-changed", refresh); };
+  }, [school, user, viewAsUid, demo]);
   const [opening] = useState<Record<string, number>>(() =>
     readJson<Record<string, number>>(`school-cashbook:${school}:opening`, {}),
   );
@@ -63,7 +102,7 @@ export default function MoneyRegisterPage({
   const current = report?.rows.find((row) => row.name === active && !row.group);
   const amount = (row?: ReportRow) =>
     row ? row.cash + row.bank + row.government : 0;
-  const categoryEntries = entries
+  const categoryEntries = [...entries, ...loanEntries]
     .filter(
       (entry) =>
         entry.category === active && fiscalYearOf(entry.date) === fiscalYear,
@@ -286,7 +325,7 @@ export default function MoneyRegisterPage({
                   </p>
                 </div>
                 <button
-                  onClick={onNavigate}
+                  onClick={() => onNavigate(active)}
                   className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white"
                 >
                   บันทึกรับ–จ่าย <ArrowRight size={16} />

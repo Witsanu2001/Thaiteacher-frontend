@@ -1,20 +1,24 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type { User } from "firebase/auth";
-import { MessageCircle, Paperclip, SendHorizontal } from "lucide-react";
+import { MessageCircle, Paperclip, SendHorizontal, UsersRound } from "lucide-react";
 import AdminHeader from "../../shared/components/AdminHeader";
 import { downloadSupportAttachment, getUserPresence, listConversationMessages, listSupportConversations, markConversationMessageRead, replyToConversation, sendStaffPresence, type SupportConversation, type SupportMessage } from "../../config/services/customer.service";
 import { listUsers, type UserProfile } from "../../config/services/users.service";
+import BroadcastSupportMessageDialog from "./BroadcastSupportMessageDialog";
 
 const timeText = (date?: string) => date ? new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" }).format(new Date(date)) : "";
 
 export default function AdminSupportPage({ user, onMenu, dark, onToggleDark }: { user: User; onMenu: () => void; dark: boolean; onToggleDark: () => void }) {
   const [conversations, setConversations] = useState<SupportConversation[]>([]);
   const [profiles, setProfiles] = useState<Record<string, UserProfile>>({});
+  const [profilesLoading, setProfilesLoading] = useState(true);
+  const [profilesError, setProfilesError] = useState("");
   const [selected, setSelected] = useState("");
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [online, setOnline] = useState(false);
   const [sending, setSending] = useState(false);
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [error, setError] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -32,7 +36,13 @@ export default function AdminSupportPage({ user, onMenu, dark, onToggleDark }: {
   }, [user, selected]);
   useEffect(() => {
     const initial = window.setTimeout(() => { void refreshList(); }, 0);
-    void listUsers(user).then(items => setProfiles(Object.fromEntries(items.map(item => [item.uid, item])))).catch(() => undefined);
+    void listUsers(user)
+      .then(items => setProfiles(Object.fromEntries(items.map(item => [item.uid, item]))))
+      .catch(loadError => {
+        console.error("Failed to load support message recipients", loadError);
+        setProfilesError("โหลดรายชื่อผู้รับไม่สำเร็จ กรุณาลองใหม่");
+      })
+      .finally(() => setProfilesLoading(false));
     void sendStaffPresence(user).catch(() => undefined);
     const poll = window.setInterval(() => { void refreshList(); }, 10000);
     const heartbeat = window.setInterval(() => { void sendStaffPresence(user).catch(() => undefined); }, 30000);
@@ -58,7 +68,20 @@ export default function AdminSupportPage({ user, onMenu, dark, onToggleDark }: {
     <AdminHeader title="บริการลูกค้า" onMenu={onMenu} dark={dark} onToggleDark={onToggleDark} />
     <main className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-5 lg:flex-row">
       <aside className="flex max-h-56 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:max-h-none lg:w-80">
-        <div className="border-b border-slate-100 px-4 py-3 font-semibold dark:border-slate-800">บทสนทนาทั้งหมด <span className="text-sm text-slate-500">({conversations.length})</span></div>
+        <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 dark:border-slate-800">
+          <div className="min-w-0 font-semibold">
+            บทสนทนา <span className="text-sm text-slate-500">({conversations.length})</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBroadcastOpen(true)}
+            disabled={profilesLoading}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-700 px-2.5 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50 sm:px-3"
+          >
+            <UsersRound size={15} />
+            ส่งหลายคน
+          </button>
+        </div>
         <div className="overflow-y-auto p-2">{conversations.length === 0 && <p className="p-3 text-sm text-slate-500">ยังไม่มีข้อความจากผู้ใช้</p>}{conversations.map(item => <button key={item.uid} type="button" onClick={() => { setSelected(item.uid); setMessages([]); }} className={`mb-1 w-full rounded-xl p-3 text-left ${selected === item.uid ? "bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}><span className="flex items-center gap-2"><span className={`size-2 rounded-full ${item.online ? "bg-emerald-500" : "bg-slate-300"}`} /><strong className="min-w-0 flex-1 truncate text-sm">{profiles[item.uid]?.displayName || profiles[item.uid]?.email || item.uid}</strong></span><span className="mt-1 block truncate text-xs text-slate-500">{item.lastMessage}</span><span className="mt-1 block text-[11px] text-slate-400">{timeText(item.lastMessageAt)}</span></button>)}</div>
       </aside>
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -66,5 +89,15 @@ export default function AdminSupportPage({ user, onMenu, dark, onToggleDark }: {
         {error && <p role="alert" className="px-4 pb-2 text-xs text-rose-600">{error}</p>}
       </section>
     </main>
+    {broadcastOpen && (
+      <BroadcastSupportMessageDialog
+        user={user}
+        profiles={Object.values(profiles)}
+        profilesLoading={profilesLoading}
+        profilesError={profilesError}
+        onClose={() => setBroadcastOpen(false)}
+        onSent={() => void refreshList()}
+      />
+    )}
   </div>;
 }

@@ -1,5 +1,12 @@
 import { scopedStorage } from '../../shared/funtion/scopedStorage';
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { User } from "firebase/auth";
+import axios from "axios";
+import { deleteCashbookEntry, loadCashbookEntries, saveCashbookEntry } from "../../config/services/cashbook.service";
+import { loadDemoReports, saveDemoReports } from "../../features/auth/demoFinanceStore";
+import { loadLoanContracts } from "../../config/services/loan-contracts.service";
+import { loanLedgerEntries } from "../loan-contracts/loanLedger";
+import type { LoanContract } from "../loan-contracts/loanContract";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -15,16 +22,22 @@ import {
 import { thaiDate } from "../../shared/funtion/thaiDate";
 import { currentFiscalYear, firstDayOfFiscalYear, fiscalYearOf } from "../../shared/funtion/fiscalYear";
 
-import type { CashbookEntry as Entry } from '../../shared/funtion/types';
+import type { CashbookEntry as Entry, DailyReport } from '../../shared/funtion/types';
 import { money } from '../../shared/funtion/money';
 import AnimatedNumber from "../../shared/components/AnimatedNumber";
+import ThaiDatePicker from "../../shared/components/ThaiDatePicker";
 type Draft = Omit<Entry, "id" | "amount" | "attachment"> & {
   amount: string;
   attachment?: Entry["attachment"];
 };
 const today = () =>
   new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Bangkok" });
+const defaultFilterDate = (fiscalYear: number, reports: DailyReport[]) =>
+  fiscalYear === currentFiscalYear()
+    ? today()
+    : [...reports].filter((report) => fiscalYearOf(report.date) === fiscalYear).sort((a, b) => b.date.localeCompare(a.date))[0]?.date || firstDayOfFiscalYear(fiscalYear);
 const key = (school: string) => `school-cashbook:${school}`;
+const linkedKey = (school: string) => `${key(school)}:linked-ids`;
 const empty = (category: string): Draft => ({
   date: today(),
   kind: "income",
@@ -45,12 +58,27 @@ export default function IncomeExpensePage({
   school,
   categories,
   fiscalYear,
+  reports,
+  initialCategory,
+  user,
+  viewAsUid,
+  demo = false,
 }: {
   school: string;
   categories: string[];
   fiscalYear: number;
+  reports: DailyReport[];
+  initialCategory?: string;
+  user?: User;
+  viewAsUid?: string;
+  demo?: boolean;
 }) {
-  const options = categories.length ? categories : ["เงินรายได้สถานศึกษา"];
+  const options = [
+    ...new Set([
+      ...(categories.length ? categories : ["เงินรายได้สถานศึกษา"]),
+      ...(initialCategory ? [initialCategory] : []),
+    ]),
+  ];
   const [entries, setEntries] = useState<Entry[]>(() => {
     try {
       const saved = JSON.parse(scopedStorage.getItem(key(school)) || "[]");
@@ -59,42 +87,100 @@ export default function IncomeExpensePage({
       return [];
     }
   });
-  const [category, setCategory] = useState(options[0]);
+  const [remoteVersions, setRemoteVersions] = useState<Record<string, string>>({});
+  const [savingEntry, setSavingEntry] = useState(false);
+  const [loadingEntries, setLoadingEntries] = useState(!demo && Boolean(user));
+  const [syncMessage, setSyncMessage] = useState("");
+  useEffect(() => {
+    if (demo || !user) return;
+    let active = true;
+    void (async () => {
+      try {
+        const remote = await loadCashbookEntries(user, viewAsUid);
+        if (!active) return;
+        const local: Entry[] = JSON.parse(scopedStorage.getItem(key(school)) || "[]");
+        const previouslyLinked: string[] = JSON.parse(scopedStorage.getItem(linkedKey(school)) || "[]");
+        const remoteIds = new Set(remote.map((item) => item.id));
+        const legacy = local.filter((item) => !remoteIds.has(item.id) && !previouslyLinked.includes(item.id));
+        const localById = new Map(local.map((item) => [item.id, item]));
+        const merged = [...legacy, ...remote.map((item) => ({ ...item, attachment: localById.get(item.id)?.attachment }))];
+        setEntries(merged);
+        setRemoteVersions(Object.fromEntries(remote.map((item) => [item.id, item.version])));
+        const encoded = JSON.stringify(merged);
+        if (scopedStorage.getItem(key(school)) !== encoded) scopedStorage.setItem(key(school), encoded);
+        const linked = JSON.stringify([...new Set([...previouslyLinked, ...remoteIds])]);
+        if (scopedStorage.getItem(linkedKey(school)) !== linked) scopedStorage.setItem(linkedKey(school), linked);
+      } catch { if (active) setSyncMessage("โหลดรายการรับ–จ่ายจากระบบไม่สำเร็จ กรุณาโหลดหน้าใหม่ก่อนบันทึก"); }
+      finally { if (active) setLoadingEntries(false); }
+    })();
+    return () => { active = false; };
+  }, [demo, user, viewAsUid, school]);
+  const [loanEntries, setLoanEntries] = useState<Entry[]>([]);
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const contracts: LoanContract[] = demo
+          ? JSON.parse(scopedStorage.getItem(`school-loan-contracts:${school}`) || "[]")
+          : user ? await loadLoanContracts(user, viewAsUid) : [];
+        if (active) setLoanEntries(loanLedgerEntries(contracts));
+      } catch { if (active) setLoanEntries([]); }
+    };
+    void refresh();
+    window.addEventListener("loan-contracts-changed", refresh);
+    return () => { active = false; window.removeEventListener("loan-contracts-changed", refresh); };
+  }, [school, user, viewAsUid, demo]);
+  const [selectedCategory, setCategory] = useState(
+    initialCategory && options.includes(initialCategory)
+      ? initialCategory
+      : options[0],
+  );
+  const category = options.includes(selectedCategory) ? selectedCategory : options[0];
   const [kindFilter, setKindFilter] = useState<"all" | "income" | "expense">(
     "all",
   );
   const [query, setQuery] = useState("");
+  const [dateSelection, setDateSelection] = useState(() => ({ year: fiscalYear, date: defaultFilterDate(fiscalYear, reports) }));
+  const dateFilter = dateSelection.year === fiscalYear ? dateSelection.date : defaultFilterDate(fiscalYear, reports);
+  const setDateFilter = (date: string) => setDateSelection({ year: fiscalYear, date });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(() => empty(options[0]));
   const [error, setError] = useState("");
-  const [openingBalances, setOpeningBalances] = useState<
-    Record<string, number>
-  >(() => {
-    try {
-      return JSON.parse(scopedStorage.getItem(`${key(school)}:opening`) || "{}");
-    } catch {
-      return {};
-    }
-  });
-  const [editingOpening, setEditingOpening] = useState(false);
-  const openingKey=`${fiscalYear}:${category}`;
-  const opening = openingBalances[openingKey] ?? (fiscalYear===currentFiscalYear()?openingBalances[category]:undefined) ?? 0;
+  const periodStart = dateFilter || firstDayOfFiscalYear(fiscalYear);
+  const openingReport = [...reports]
+    .filter((report) => report.date < periodStart)
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  const openingRow = openingReport?.rows.find((row) => !row.group && row.name === category);
+  const opening = openingRow ? openingRow.cash + openingRow.bank + openingRow.government : null;
   const categoryEntries = useMemo(
     () =>
-      entries
+      [...entries, ...loanEntries]
         .filter((entry) => entry.category === category && fiscalYearOf(entry.date)===fiscalYear)
         .sort(
           (a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id),
         ),
-    [entries, category, fiscalYear],
+    [entries, loanEntries, category, fiscalYear],
   );
-  const totals = categoryEntries.reduce(
+  const legacyCount = !demo && !loadingEntries ? entries.filter((entry) => !remoteVersions[entry.id]).length : 0;
+  const periodEntries = dateFilter ? categoryEntries.filter((entry) => entry.date === dateFilter) : categoryEntries;
+  const totals = periodEntries.reduce(
     (sum, entry) => ({ ...sum, [entry.kind]: sum[entry.kind] + entry.amount }),
     { income: 0, expense: 0 },
   );
+  const balanceReport = [...reports]
+    .filter((report) => fiscalYearOf(report.date) === fiscalYear && (!dateFilter || report.date <= dateFilter))
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  const balanceRow = balanceReport?.rows.find((row) => !row.group && row.name === category);
+  const reportedBalance = balanceRow ? balanceRow.cash + balanceRow.bank + balanceRow.government : null;
   const balances = new Map<string, number>();
-  let running = opening;
+  const netThroughReport = balanceReport
+    ? categoryEntries.filter((entry) => entry.date <= balanceReport.date).reduce((sum, entry) => sum + (entry.kind === "income" ? entry.amount : -entry.amount), 0)
+    : 0;
+  const registerDifference = opening === null || reportedBalance === null || (dateFilter && balanceReport?.date !== dateFilter)
+    ? 0
+    : reportedBalance - (opening + (dateFilter ? totals.income - totals.expense : netThroughReport));
+  let running = reportedBalance === null ? (opening ?? 0) : reportedBalance - netThroughReport;
   categoryEntries.forEach((entry) => {
     running += entry.kind === "income" ? entry.amount : -entry.amount;
     balances.set(entry.id, running);
@@ -103,15 +189,29 @@ export default function IncomeExpensePage({
     .filter(
       (entry) =>
         (kindFilter === "all" || entry.kind === kindFilter) &&
+        (!dateFilter || entry.date === dateFilter) &&
         (!query ||
           `${entry.description} ${entry.documentNo} ${entry.party}`
             .toLowerCase()
             .includes(query.toLowerCase())),
     )
     .reverse();
+  const clearFilters = () => {
+    setKindFilter("all");
+    setDateFilter("");
+    setQuery("");
+  };
+  const emptyMessage =
+    categoryEntries.length === 0
+      ? `ยังไม่มีรายการในประเภทเงินนี้สำหรับปีงบประมาณ ${fiscalYear}`
+      : "ไม่พบรายการตามตัวกรองที่เลือก";
   const saveEntries = (next: Entry[]) => {
-    scopedStorage.setItem(key(school), JSON.stringify(next));
     setEntries(next);
+    try { scopedStorage.setItem(key(school), JSON.stringify(next)); }
+    catch {
+      if (demo) throw new Error("demo_storage_full");
+      setSyncMessage("บันทึกในระบบแล้ว แต่บันทึกสำเนาในเครื่องไม่สำเร็จ กรุณาโหลดหน้าใหม่ก่อนทำรายการต่อ");
+    }
   };
   const start = (kind: "income" | "expense", entry?: Entry) => {
     setDraft(
@@ -123,7 +223,7 @@ export default function IncomeExpensePage({
     setError("");
     setOpen(true);
   };
-  const save = () => {
+  const save = async () => {
     const amount = Number(draft.amount);
     if(draft.date && fiscalYearOf(draft.date)!==fiscalYear){setError(`วันที่ต้องอยู่ในปีงบประมาณ ${fiscalYear}`);return}
     if (
@@ -142,16 +242,81 @@ export default function IncomeExpensePage({
       amount,
       description: draft.description.trim(),
     };
+    if (!demo && !user) { setError("กรุณาเข้าสู่ระบบก่อนบันทึก"); return; }
+    if (loadingEntries) { setError("กำลังโหลดรายการล่าสุด กรุณารอสักครู่"); return; }
+    if (!demo && syncMessage) { setError(syncMessage); return; }
+    if (editing && !demo && !remoteVersions[editing] && !window.confirm("รายการนี้บันทึกก่อนเชื่อมรายงาน การแก้ไขจะนำยอดใหม่เข้ารายงานรายวัน โปรดตรวจว่ารายงานเดิมยังไม่รวมยอดนี้")) return;
+    setSavingEntry(true);
     try {
+      if (demo) {
+        const reports = loadDemoReports();
+        const changes = [editing ? entries.find((entry) => entry.id === editing) : undefined, item] as const;
+        const updated = new Map<string, typeof reports[number]>();
+        for (const [index, change] of changes.entries()) {
+          if (!change) continue;
+          const report = updated.get(change.date) || reports.find((row) => row.date === change.date) || [...reports].filter((row) => row.date < change.date).sort((a, b) => b.date.localeCompare(a.date))[0];
+          if (!report) throw new Error("missing_report");
+          const base = report.date === change.date ? report : { date: change.date, rows: report.rows.map((row) => ({ ...row, note: "" })) };
+          const sign = (change.kind === "income" ? 1 : -1) * (index === 0 ? -1 : 1);
+          let found = false;
+          const rows = base.rows.map((row) => {
+            if (row.group || row.name !== change.category) return row;
+            found = true;
+            const next = row[change.account] + sign * change.amount;
+            if (next < 0) throw new Error("insufficient_balance");
+            return { ...row, [change.account]: next };
+          });
+          if (!found) throw new Error("missing_category");
+          updated.set(change.date, { ...base, rows });
+        }
+        saveDemoReports([...updated.values()]);
+      } else if (user) {
+        const stored = await saveCashbookEntry(user, item, editing ? remoteVersions[editing] : undefined, viewAsUid);
+        setRemoteVersions((current) => ({ ...current, [item.id]: stored.version }));
+        try {
+          const linked: string[] = JSON.parse(scopedStorage.getItem(linkedKey(school)) || "[]");
+          if (!linked.includes(item.id)) scopedStorage.setItem(linkedKey(school), JSON.stringify([...linked, item.id]));
+        } catch { setSyncMessage("บันทึกในระบบแล้ว แต่บันทึกสำเนาในเครื่องไม่สำเร็จ กรุณาโหลดหน้าใหม่ก่อนทำรายการต่อ"); }
+      }
       saveEntries(
         editing
           ? entries.map((entry) => (entry.id === editing ? item : entry))
           : [...entries, item],
       );
       setOpen(false);
-    } catch {
-      setError("บันทึกไม่ได้ พื้นที่จัดเก็บข้อมูลอาจเต็ม กรุณาลดขนาดไฟล์แนบ");
-    }
+      window.dispatchEvent(new Event("finance-report-changed"));
+    } catch (cause) {
+      setError(axios.isAxiosError(cause) && cause.response?.status === 409 ? "รายการถูกแก้จากอีกเครื่อง กรุณาโหลดหน้าใหม่" : axios.isAxiosError(cause) && cause.response?.status === 422 ? "ปรับยอดรายงานไม่ได้ กรุณาตรวจประเภทเงิน ช่องทาง และยอดคงเหลือของวันนั้น" : "บันทึกไม่สำเร็จ กรุณาตรวจว่ามีรายงานวันก่อนหน้าและลองอีกครั้ง");
+    } finally { setSavingEntry(false); }
+  };
+  const remove = async (entry: Entry) => {
+    if (loadingEntries || (!demo && syncMessage)) { setSyncMessage("กรุณาโหลดรายการล่าสุดให้สำเร็จก่อนลบ"); return; }
+    if (!window.confirm(remoteVersions[entry.id] || demo ? "ลบรายการนี้? ยอดในรายงานของวันที่ทำรายการจะปรับกลับด้วย" : "ลบรายการเก่านี้? รายการนี้ยังไม่เชื่อมกับยอดในรายงานรายวัน")) return;
+    setSavingEntry(true);
+    try {
+      if (!demo && user && remoteVersions[entry.id]) {
+        await deleteCashbookEntry(user, entry.id, remoteVersions[entry.id], viewAsUid);
+        setRemoteVersions((current) => { const next = { ...current }; delete next[entry.id]; return next; });
+      } else if (demo) {
+        const reports = loadDemoReports();
+        const report = reports.find((row) => row.date === entry.date);
+        if (!report) throw new Error("missing_report");
+        let found = false;
+        const rows = report.rows.map((row) => {
+          if (row.group || row.name !== entry.category) return row;
+          found = true;
+          const next = row[entry.account] + (entry.kind === "income" ? -entry.amount : entry.amount);
+          if (next < 0) throw new Error("insufficient_balance");
+          return { ...row, [entry.account]: next };
+        });
+        if (!found) throw new Error("missing_category");
+        saveDemoReports([{ ...report, rows }]);
+      }
+      saveEntries(entries.filter((item) => item.id !== entry.id));
+      window.dispatchEvent(new Event("finance-report-changed"));
+    } catch (cause) {
+      setSyncMessage(axios.isAxiosError(cause) && cause.response?.status === 409 ? "รายการถูกแก้จากอีกเครื่อง กรุณาโหลดหน้าใหม่" : "ลบรายการไม่สำเร็จ กรุณาตรวจยอดในรายงานของวันนั้น");
+    } finally { setSavingEntry(false); }
   };
   const onFile = (file?: File) => {
     if (!file) return;
@@ -169,13 +334,16 @@ export default function IncomeExpensePage({
   };
   return (
     <div className="space-y-5">
+      {(syncMessage || loadingEntries) && <p role={syncMessage ? "alert" : "status"} className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">{syncMessage || "กำลังโหลดรายการรับ–จ่ายล่าสุด..."}</p>}
+      {legacyCount > 0 && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">มีรายการเก่า {legacyCount} รายการที่บันทึกก่อนเชื่อมรายงาน ระบบไม่ปรับยอดย้อนหลังอัตโนมัติเพื่อป้องกันการนับซ้ำ</p>}
+      {Math.abs(registerDifference) >= 0.01 && <p className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">ยอดยกมาและรายการในทะเบียนยังไม่ตรงกับรายงาน ต่างกัน ฿ {money(Math.abs(registerDifference))} · โปรดตรวจรายการที่ยังไม่ได้บันทึกในทะเบียน</p>}
       <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:flex-row lg:items-center sm:p-5">
         <div>
           <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-            กำลังดูประเภทเงิน
+            ประเภทเงิน
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            เลือกบัญชีที่ต้องการดูหรือบันทึกรายการ
+            เลือกประเภทเงินที่ต้องการดูหรือบันทึกรายการ
           </p>
         </div>
         <select
@@ -221,7 +389,9 @@ export default function IncomeExpensePage({
           },
           {
             label: "คงเหลือ",
-            value: opening + totals.income - totals.expense,
+            value: dateFilter && balanceReport?.date !== dateFilter
+              ? opening === null ? null : opening + totals.income - totals.expense
+              : reportedBalance ?? (opening === null ? null : opening + totals.income - totals.expense),
             Icon: Landmark,
             accent:
               "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
@@ -247,34 +417,29 @@ export default function IncomeExpensePage({
             <p
               className={`mt-4 break-all text-2xl font-bold tracking-tight tabular-nums ${number}`}
             >
-              ฿ <AnimatedNumber value={value} format={money} />
+              {value === null ? "—" : <>฿ <AnimatedNumber value={value} format={money} /></>}
             </p>
             {label === "ยอดยกมา" ? (
-              <button
-                onClick={() => setEditingOpening(true)}
-                className="mt-3 text-xs font-semibold text-blue-700 underline-offset-2 hover:underline dark:text-blue-300"
-              >
-                แก้ไขยอดยกมา
-              </button>
+              <p className="mt-3 text-xs text-slate-500">{openingReport ? `จากรายงานวันที่ ${thaiDate(openingReport.date)} · รวม 3 ช่องทาง` : "ยังไม่มีรายงานก่อนช่วงวันที่เลือก"}</p>
             ) : (
               <p className="mt-3 text-xs text-slate-400">
                 {label === "คงเหลือ"
-                  ? "หลังหักรายจ่ายทั้งหมด"
+                  ? dateFilter && balanceReport?.date !== dateFilter ? "คำนวณจากยอดยกมาและรายการของวัน" : balanceReport ? `ยอดตามรายงานวันที่ ${thaiDate(balanceReport.date)}` : "ยังไม่มีรายงานสำหรับประเภทเงินนี้"
                   : `${categoryEntries.length} รายการในทะเบียน`}
               </p>
             )}
           </article>
         ))}
       </div>
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-4 dark:border-slate-800 sm:p-5">
-          <div className="mr-auto">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="grid gap-3 border-b border-slate-200 p-4 dark:border-slate-800 sm:grid-cols-[auto_minmax(0,1fr)] sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto_auto_16rem] xl:items-center">
+          <div className="min-w-0 sm:col-span-2 xl:col-span-1">
             <h3 className="font-semibold">รายการในทะเบียน</h3>
             <p className="text-xs text-slate-500">
-              {categoryEntries.length} รายการ · {category}
+              {categoryEntries.length} รายการ · {category}{dateFilter ? ` · ${thaiDate(dateFilter)}` : " · ทุกวันในปีงบประมาณ"}
             </p>
           </div>
-          <div className="flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+          <div className="flex w-fit gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
             {(
               [
                 ["all", "ทั้งหมด"],
@@ -291,7 +456,11 @@ export default function IncomeExpensePage({
               </button>
             ))}
           </div>
-          <label className="relative w-full sm:w-64">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:col-span-2 sm:justify-self-end sm:w-auto xl:col-span-1 xl:justify-self-auto">
+            <button type="button" onClick={() => setDateFilter("")} aria-pressed={!dateFilter} className={`h-12 rounded-lg border px-3 text-sm font-semibold ${!dateFilter ? "border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "border-slate-300 text-slate-600 dark:border-slate-700 dark:text-slate-300"}`}>ทุกวัน</button>
+            <ThaiDatePicker value={dateFilter} onChange={setDateFilter} />
+          </div>
+          <label className="relative w-full sm:col-span-2 xl:col-span-1">
             <Search
               size={17}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -305,11 +474,20 @@ export default function IncomeExpensePage({
           </label>
         </div>
         {visible.length === 0 && (
-          <p className="p-8 text-center text-sm text-slate-500 sm:hidden">
-            ยังไม่มีรายการในประเภทเงินนี้
-          </p>
+          <div className="p-8 text-center text-sm text-slate-500 xl:hidden">
+            <p>{emptyMessage}</p>
+            {categoryEntries.length > 0 && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="mt-2 font-semibold text-blue-700 hover:underline dark:text-blue-300"
+              >
+                ล้างตัวกรอง
+              </button>
+            )}
+          </div>
         )}
-        <div className="divide-y divide-slate-100 sm:hidden dark:divide-slate-800">
+        <div className="divide-y divide-slate-100 xl:hidden dark:divide-slate-800">
           {visible.map((entry) => (
             <article
               key={entry.id}
@@ -352,32 +530,39 @@ export default function IncomeExpensePage({
                       <FileText size={18} />
                     </a>
                   )}
-                  <button
+                  {!entry.id.startsWith("loan:") && <button
                     onClick={() => start(entry.kind, entry)}
                     aria-label="แก้ไขรายการ"
                     className="p-1 text-blue-700"
                   >
                     <Pencil size={18} />
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (window.confirm("ลบรายการนี้?"))
-                        saveEntries(
-                          entries.filter((item) => item.id !== entry.id),
-                        );
-                    }}
+                  </button>}
+                  {!entry.id.startsWith("loan:") && <button
+                    onClick={() => void remove(entry)}
+                    disabled={savingEntry}
                     aria-label="ลบรายการ"
                     className="p-1 text-rose-600"
                   >
                     <Trash2 size={18} />
-                  </button>
+                  </button>}
                 </div>
               </div>
             </article>
           ))}
         </div>
-        <div className="hidden overflow-x-auto sm:block">
-          <table className="w-full min-w-[900px] text-left text-sm">
+        <div className="hidden xl:block">
+          <table className="w-full table-fixed text-left text-sm">
+            <colgroup>
+              <col className="w-[9%]" />
+              <col className="w-[11%]" />
+              <col className="w-[23%]" />
+              <col className="w-[14%]" />
+              <col className="w-[9%]" />
+              <col className="w-[9%]" />
+              <col className="w-[11%]" />
+              <col className="w-[7%]" />
+              <col className="w-[7%]" />
+            </colgroup>
             <thead className="bg-blue-50/70 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               <tr>
                 {[
@@ -391,7 +576,10 @@ export default function IncomeExpensePage({
                   "หลักฐาน",
                   "",
                 ].map((h) => (
-                  <th key={h} className="px-4 py-3 font-semibold">
+                  <th
+                    key={h}
+                    className={`whitespace-nowrap px-2 py-3 font-semibold ${["รับ", "จ่าย", "คงเหลือ"].includes(h) ? "text-right" : h === "หลักฐาน" || !h ? "text-center" : ""}`}
+                  >
                     {h}
                   </th>
                 ))}
@@ -403,11 +591,11 @@ export default function IncomeExpensePage({
                   key={entry.id}
                   className="transition hover:bg-blue-50/40 dark:hover:bg-slate-800/60"
                 >
-                  <td className="whitespace-nowrap px-4 py-3">
+                  <td className="whitespace-nowrap px-2 py-3">
                     {thaiDate(entry.date)}
                   </td>
-                  <td className="px-4 py-3">{entry.documentNo || "–"}</td>
-                  <td className="px-4 py-3">
+                  <td className="whitespace-nowrap px-2 py-3">{entry.documentNo || "–"}</td>
+                  <td className="max-w-[22rem] px-2 py-3">
                     <span className="font-medium">{entry.description}</span>
                     {entry.party && (
                       <span className="block text-xs text-slate-500">
@@ -420,17 +608,17 @@ export default function IncomeExpensePage({
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3">{accountNames[entry.account]}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-emerald-700">
+                  <td className="whitespace-nowrap px-2 py-3">{accountNames[entry.account]}</td>
+                  <td className="whitespace-nowrap px-2 py-3 text-right font-semibold text-emerald-700">
                     {entry.kind === "income" ? money(entry.amount) : "–"}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold text-rose-700">
+                  <td className="whitespace-nowrap px-2 py-3 text-right font-semibold text-rose-700">
                     {entry.kind === "expense" ? money(entry.amount) : "–"}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                  <td className="whitespace-nowrap px-2 py-3 text-right font-semibold tabular-nums">
                     {money(balances.get(entry.id) || 0)}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="whitespace-nowrap px-2 py-3 text-center">
                     {entry.attachment ? (
                       <a
                         href={entry.attachment.data}
@@ -443,26 +631,22 @@ export default function IncomeExpensePage({
                       "–"
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-3">
-                    <button
+                  <td className="whitespace-nowrap px-2 py-3 text-center">
+                    {!entry.id.startsWith("loan:") && <button
                       onClick={() => start(entry.kind, entry)}
                       aria-label="แก้ไขรายการ"
                       className="rounded p-2 text-blue-700 hover:bg-blue-50 dark:text-blue-300"
                     >
                       <Pencil size={16} />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (window.confirm("ลบรายการนี้?"))
-                          saveEntries(
-                            entries.filter((item) => item.id !== entry.id),
-                          );
-                      }}
+                    </button>}
+                    {!entry.id.startsWith("loan:") && <button
+                      onClick={() => void remove(entry)}
+                      disabled={savingEntry}
                       aria-label="ลบรายการ"
                       className="rounded p-2 text-rose-600 hover:bg-rose-50"
                     >
                       <Trash2 size={16} />
-                    </button>
+                    </button>}
                   </td>
                 </tr>
               ))}
@@ -470,66 +654,26 @@ export default function IncomeExpensePage({
           </table>
           {visible.length === 0 && (
             <div className="p-10 text-center text-sm text-slate-500">
-              ยังไม่มีรายการในประเภทเงินนี้
+              <p>{emptyMessage}</p>
+              {categoryEntries.length > 0 && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="mt-2 font-semibold text-blue-700 hover:underline dark:text-blue-300"
+                >
+                  ล้างตัวกรอง
+                </button>
+              )}
             </div>
           )}
         </div>
       </section>
-      {editingOpening && (
-        <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/60 p-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="w-full max-w-sm rounded-2xl bg-white p-5 dark:bg-slate-900"
-          >
-            <h3 className="text-lg font-semibold">ยอดยกมา · {category}</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              ใช้เป็นยอดตั้งต้นของทะเบียนประเภทเงินนี้
-            </p>
-            <input
-              autoFocus
-              type="number"
-              step="0.01"
-              defaultValue={opening}
-              id="opening-amount"
-              className="mt-4 w-full rounded-lg border bg-white p-3 text-slate-900"
-            />
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                onClick={() => setEditingOpening(false)}
-                className="rounded-lg border px-4 py-2"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={() => {
-                  const field = document.getElementById(
-                    "opening-amount",
-                  ) as HTMLInputElement;
-                  const n = Number(field.value);
-                  if (!Number.isFinite(n)) return;
-                  const next = { ...openingBalances, [openingKey]: n };
-                  scopedStorage.setItem(
-                    `${key(school)}:opening`,
-                    JSON.stringify(next),
-                  );
-                  setOpeningBalances(next);
-                  setEditingOpening(false);
-                }}
-                className="rounded-lg bg-blue-700 px-4 py-2 text-white"
-              >
-                บันทึก
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {open && (
         <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/60 p-3 sm:p-6">
           <div
             role="dialog"
             aria-modal="true"
-            className="mx-auto max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:p-6"
+            className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:p-6"
           >
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
               <div>
@@ -559,23 +703,16 @@ export default function IncomeExpensePage({
                       kind: e.target.value as Draft["kind"],
                     }))
                   }
-                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:focus:bg-slate-800 dark:text-white"
                 >
                   <option value="income">รายรับ</option>
                   <option value="expense">รายจ่าย</option>
                 </select>
               </label>
-              <label className="grid min-w-0 gap-1 text-sm font-medium">
-                วันที่
-                <input
-                  type="date"
-                  value={draft.date}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, date: e.target.value }))
-                  }
-                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                />
-              </label>
+              <div className="grid min-w-0 content-start gap-1 text-sm font-medium">
+                <span>วันที่</span>
+                <ThaiDatePicker value={draft.date} onChange={(date) => setDraft((current) => ({ ...current, date }))} />
+              </div>
               <label className="grid min-w-0 gap-1 text-sm font-medium">
                 ประเภทเงิน
                 <select
@@ -583,7 +720,7 @@ export default function IncomeExpensePage({
                   onChange={(e) =>
                     setDraft((d) => ({ ...d, category: e.target.value }))
                   }
-                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:focus:bg-slate-800 dark:text-white"
                 >
                   {options.map((name) => (
                     <option key={name}>{name}</option>
@@ -600,7 +737,7 @@ export default function IncomeExpensePage({
                       account: e.target.value as Draft["account"],
                     }))
                   }
-                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:focus:bg-slate-800 dark:text-white"
                 >
                   <option value="cash">เงินสด</option>
                   <option value="bank">เงินฝากธนาคาร</option>
@@ -615,7 +752,7 @@ export default function IncomeExpensePage({
                     setDraft((d) => ({ ...d, documentNo: e.target.value }))
                   }
                   placeholder="เลขที่ใบสำคัญ / ใบเสร็จ"
-                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:focus:bg-slate-800 dark:text-white"
                 />
               </label>
               <label className="grid min-w-0 gap-1 text-sm font-medium">
@@ -630,7 +767,7 @@ export default function IncomeExpensePage({
                     setDraft((d) => ({ ...d, amount: e.target.value }))
                   }
                   placeholder="0.00"
-                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:focus:bg-slate-800 dark:text-white"
                 />
               </label>
               <label className="grid min-w-0 gap-1 text-sm font-medium sm:col-span-2">
@@ -641,7 +778,7 @@ export default function IncomeExpensePage({
                     setDraft((d) => ({ ...d, description: e.target.value }))
                   }
                   placeholder="ระบุว่ารับหรือจ่ายเพื่ออะไร"
-                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:focus:bg-slate-800 dark:text-white"
                 />
               </label>
               <label className="grid min-w-0 gap-1 text-sm font-medium">
@@ -652,7 +789,7 @@ export default function IncomeExpensePage({
                     setDraft((d) => ({ ...d, party: e.target.value }))
                   }
                   placeholder="ชื่อบุคคลหรือหน่วยงาน"
-                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:focus:bg-slate-800 dark:text-white"
                 />
               </label>
               <label className="grid min-w-0 gap-1 text-sm font-medium">
@@ -686,7 +823,7 @@ export default function IncomeExpensePage({
                     setDraft((d) => ({ ...d, note: e.target.value }))
                   }
                   rows={2}
-                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/50 p-3 text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:focus:bg-slate-800 dark:text-white"
                 />
               </label>
             </div>
@@ -703,10 +840,11 @@ export default function IncomeExpensePage({
                 ยกเลิก
               </button>
               <button
-                onClick={save}
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-5 py-2.5 font-semibold text-white"
+                onClick={() => void save()}
+                disabled={savingEntry || loadingEntries || Boolean(syncMessage)}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-5 py-2.5 font-semibold text-white disabled:opacity-50"
               >
-                <Plus size={17} /> บันทึกรายการ
+                <Plus size={17} /> {savingEntry ? "กำลังบันทึก..." : "บันทึกรายการ"}
               </button>
             </div>
           </div>

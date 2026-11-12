@@ -16,6 +16,8 @@ function effectiveScope() {
   return { uid: viewingUserId || currentUserId, version: viewingUserId ? viewingDataVersion : currentDataVersion };
 }
 
+export function activeDataVersion() { return effectiveScope().version; }
+
 function prefix(uid: string, version: number) {
   return `thaiteacher-user:${uid}:${version ? `v${version}:` : ""}`;
 }

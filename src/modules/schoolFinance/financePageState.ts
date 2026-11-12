@@ -1,5 +1,6 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { DailyReport } from "../../shared/funtion/types";
+import type { User } from "firebase/auth";
 
 export type FinancePageState = {
   importMessage: string;
@@ -8,10 +9,14 @@ export type FinancePageState = {
   fiscalYear: number;
   report?: DailyReport | null;
   yearReports: DailyReport[];
+  allReports: DailyReport[];
+  user?: User;
+  viewAsUid?: string;
+  demo: boolean;
   categories: string[];
   reportFormDate: string;
   onPreview?: () => void;
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, incomeExpenseCategory?: string) => void;
   overview: ReactNode;
 };
 

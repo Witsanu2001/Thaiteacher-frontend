@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { User } from "firebase/auth";
 import { Eye, Pencil, Search, Users, X } from "lucide-react";
 import {
+  adminAssignSchool,
   adminUpdateUser,
   listUsers,
   type AdminUserUpdate,
@@ -98,6 +99,8 @@ export default function AdminUsersPage({
   const [editing, setEditing] = useState<UserProfile | null>(null);
   const [draft, setDraft] = useState<AdminUserUpdate | null>(null);
   const [saving, setSaving] = useState(false);
+  const [joiningSchoolId, setJoiningSchoolId] = useState("");
+  const [joining, setJoining] = useState(false);
   const [now] = useState(() => Date.now());
 
   useEffect(() => {
@@ -137,6 +140,7 @@ export default function AdminUsersPage({
   );
   const beginEdit = (item: UserProfile) => {
     setEditing(item);
+    setJoiningSchoolId("");
     setDraft({
       displayName: item.displayName,
       phone: item.phone,
@@ -150,6 +154,22 @@ export default function AdminUsersPage({
       paidUntil: item.paidUntil,
     });
     setError("");
+  };
+  const joinSchool = async () => {
+    if (!editing || !joiningSchoolId) return;
+    setJoining(true);
+    setError("");
+    try {
+      const updated = await adminAssignSchool(user, editing.uid, joiningSchoolId);
+      setUsers((current) => current.map((item) => item.uid === updated.uid ? updated : item));
+      setEditing(null);
+      setDraft(null);
+      setJoiningSchoolId("");
+    } catch {
+      setError("เชื่อมโรงเรียนไม่สำเร็จ บัญชีนี้อาจมีข้อมูลการเงินของตัวเองหรือมีสมาชิกอยู่แล้ว");
+    } finally {
+      setJoining(false);
+    }
   };
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -431,6 +451,7 @@ export default function AdminUsersPage({
                   required
                   className={inputClass}
                   value={draft.schoolName}
+                  disabled={Boolean(editing.schoolId && editing.schoolId !== editing.uid)}
                   onChange={(e) =>
                     setDraft({ ...draft, schoolName: e.target.value })
                   }
@@ -492,6 +513,33 @@ export default function AdminUsersPage({
                 <option value="supperAdmin">ผู้ดูแลระบบ</option>
               </select>
             </label>
+            <section className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm dark:border-blue-900 dark:bg-blue-950/30">
+              <h3 className="font-semibold">การเข้าถึงข้อมูลโรงเรียน</h3>
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                บัญชีที่อยู่โรงเรียนเดียวกันจะดูและแก้ข้อมูลการเงินชุดเดียวกันได้ ผู้ดูแลระบบเป็นผู้อนุมัติการเชื่อมบัญชี
+              </p>
+              {editing.schoolId && editing.schoolId !== editing.uid ? (
+                <p className="mt-3 font-medium">บัญชีนี้เชื่อมกับ {editing.schoolName} แล้ว</p>
+              ) : editing.role === "supperAdmin" ? (
+                <p className="mt-3 text-slate-500">บัญชีผู้ดูแลระบบไม่เข้าร่วมโรงเรียน</p>
+              ) : (
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <label className="min-w-0 flex-1 font-medium">
+                    เชื่อมกับโรงเรียนที่มีอยู่
+                    <select className={inputClass} value={joiningSchoolId} onChange={(event) => setJoiningSchoolId(event.target.value)}>
+                      <option value="">เลือกโรงเรียน</option>
+                      {activeUsers.filter((item) => item.uid !== editing.uid && (item.schoolId || item.uid) === item.uid && item.schoolName && item.role !== "supperAdmin" && item.status === "active").map((item) => (
+                        <option key={item.uid} value={item.uid}>{item.schoolName} · {item.email}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="button" onClick={joinSchool} disabled={!joiningSchoolId || joining || saving} className="rounded-xl bg-blue-600 px-4 py-2.5 font-semibold text-white disabled:opacity-50">
+                    {joining ? "กำลังเชื่อม…" : "อนุมัติเข้าร่วม"}
+                  </button>
+                </div>
+              )}
+              <p className="mt-2 text-xs text-slate-500">บัญชีที่จะเข้าร่วมต้องยังไม่มีข้อมูลการเงินของตัวเอง หลังอนุมัติให้ผู้ใช้โหลดหน้าเว็บใหม่</p>
+            </section>
             <p className="mt-4 text-xs text-slate-500">
               วันเริ่มใช้งาน: {dateText(editing.createdAt)} · รหัสผู้ใช้:{" "}
               {editing.uid}

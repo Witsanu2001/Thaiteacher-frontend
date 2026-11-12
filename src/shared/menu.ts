@@ -8,6 +8,7 @@ export const menuConfig: MenuItem[] = [
   { label: "Dashboard", path: "/admin/dashboard", role: "superAdmin" },
   { label: "ผู้ใช้งาน", path: "/admin/users", role: "superAdmin" },
   { label: "บริการลูกค้า", path: "/admin/support", role: "superAdmin" },
+  { label: "ประกาศ", path: "/admin/announcements", role: "superAdmin" },
   { label: "เคลียร์ข้อมูลผู้ใช้", path: "/admin/clear-users", role: "superAdmin" },
   { label: "ผู้ช่วย AI", path: "/admin/gimini-ai", role: "superAdmin" },
   { label: "ภาพรวมงบประมาณ", path: "/finance/school-finance", role: "teacher" },
@@ -26,6 +27,7 @@ export const menuConfig: MenuItem[] = [
     path: "/finance/vouchers",
     role: "teacher",
   },
+  { label: "สัญญาการยืมเงิน", path: "/finance/loan-contracts", role: "teacher" },
   { label: "ส่งออกทะเบียน", path: "/finance/exports", role: "teacher" },
   {
     label: "จัดแบบฟอร์มรายงาน",

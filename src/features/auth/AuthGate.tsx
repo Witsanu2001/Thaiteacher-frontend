@@ -113,7 +113,16 @@ async function syncOwnerState(user: User, version: number) {
       merged[key] = value;
       continue;
     }
-    if (remote[key] === undefined || isScopedDirty(user.uid, version, key)) {
+    if (isScopedDirty(user.uid, version, key) && remote[key] !== undefined && remote[key] !== value) {
+      localStorage.setItem(`thaiteacher-conflict-backup:${user.uid}:${version}:${key}:${Date.now()}`, value);
+      clearScopedDirty(user.uid, version, key);
+      continue;
+    }
+    if (isScopedDirty(user.uid, version, key) && remote[key] === value) {
+      clearScopedDirty(user.uid, version, key);
+      continue;
+    }
+    if (remote[key] === undefined) {
       await writeAppState(user, key, value);
       clearScopedDirty(user.uid, version, key);
       merged[key] = value;
@@ -146,7 +155,6 @@ export default function AuthGate({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [missingAdminClaim, setMissingAdminClaim] = useState(false);
-  const [syncWarning, setSyncWarning] = useState(false);
   const [showDemo, setShowDemo] = useState(true);
   const [form, setForm] = useState({
     displayName: "",
@@ -163,13 +171,9 @@ export default function AuthGate({
   }, []);
 
   useEffect(() => {
-    const warn = () => setSyncWarning(true);
-    window.addEventListener("app-state-sync-error", warn);
-    return () => window.removeEventListener("app-state-sync-error", warn);
-  }, []);
-
-  useEffect(() => {
+    let authRequestId = 0;
     const unsubscribeAuth = onAuthStateChanged(auth, async (current) => {
+      const requestId = ++authRequestId;
       setStorageUser(null);
       setViewingUser(null);
       configureStorageSync(null);
@@ -178,7 +182,6 @@ export default function AuthGate({
       setPayments([]);
       setError("");
       setMissingAdminClaim(false);
-      setSyncWarning(false);
       if (!current) {
         visitSessionIds.clear();
         setLoading(false);
@@ -189,9 +192,11 @@ export default function AuthGate({
         // Google sign-in has already succeeded at this point. Load the profile
         // independently so a payment API outage cannot make sign-in look failed.
         const value = await loadProfile(current);
+        if (requestId !== authRequestId) return;
         if (value.role !== "supperAdmin") {
           try {
             const saved = await getDocFromServer(doc(db, "users", current.uid));
+            if (requestId !== authRequestId) return;
             if (
               saved.exists() &&
               ["supperAdmin", "SupperAdmin"].includes(saved.data().role)
@@ -218,8 +223,9 @@ export default function AuthGate({
           );
           try {
             await syncOwnerState(current, value.dataVersion || 0);
-          } catch {
-            setSyncWarning(true);
+            if (requestId !== authRequestId) return;
+          } catch (syncError) {
+            console.error("Failed to sync owner state", syncError);
           }
         }
         setProfile(toProfile(value));
@@ -238,37 +244,47 @@ export default function AuthGate({
         if (value.status === "clearing" || value.status === "cleared") return;
         try {
           const paymentItems = await getPaymentRequests(current);
+          if (requestId !== authRequestId) return;
           setPayments(paymentItems);
         } catch {
-          setError(
-            "เข้าสู่ระบบแล้ว แต่โหลดรายการชำระเงินไม่ได้ กรุณาลองใหม่ภายหลัง",
-          );
+          if (requestId === authRequestId)
+            setError("เข้าสู่ระบบแล้ว แต่โหลดรายการชำระเงินไม่ได้ กรุณาลองใหม่ภายหลัง");
         }
       } catch {
-        setError(
-          "เข้าสู่ระบบ Google แล้ว แต่โหลดโปรไฟล์จาก users-service ไม่สำเร็จ กรุณาตรวจสอบ service และ Firestore",
-        );
-        setLoading(false);
+        if (requestId === authRequestId) {
+          setError("เข้าสู่ระบบ Google แล้ว แต่โหลดโปรไฟล์จาก users-service ไม่สำเร็จ กรุณาตรวจสอบ service และ Firestore");
+          setLoading(false);
+        }
       }
     });
     return () => {
+      authRequestId++;
       unsubscribeAuth();
     };
   }, []);
 
   useEffect(() => {
     if (!user) return;
+    const refreshInterval = 10 * 60_000;
+    let lastRefreshAt = Date.now();
     const refresh = () => {
+      if (document.visibilityState !== "visible" || Date.now() - lastRefreshAt < refreshInterval) return;
+      lastRefreshAt = Date.now();
       void loadProfile(user)
-        .then((value) => {
+        .then(async (value) => {
           if (value.status === "clearing" || value.status === "cleared")
             clearStorageForUser(user.uid);
-          else setStorageUser(user.uid, value.dataVersion || 0);
+          else {
+            setStorageUser(user.uid, value.dataVersion || 0);
+            await syncOwnerState(user, value.dataVersion || 0);
+          }
           setProfile(toProfile(value));
         })
-        .catch(() => {});
+        .catch((syncError) => {
+          console.error("Failed to refresh owner state", syncError);
+        });
     };
-    const timer = window.setInterval(refresh, 60_000);
+    const timer = window.setInterval(refresh, refreshInterval);
     document.addEventListener("visibilitychange", refresh);
     return () => {
       window.clearInterval(timer);
@@ -683,15 +699,6 @@ export default function AuthGate({
           บัญชีนี้มีข้อมูลบทบาทผู้ดูแลใน Firestore แต่ Firebase ID token
           ยังไม่มีสิทธิ์ supperAdmin กรุณาตั้ง custom claim ใน Firebase
           Authentication แล้วออกจากระบบและเข้าใหม่
-        </div>
-      )}
-      {syncWarning && (
-        <div
-          role="alert"
-          className="border-b border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
-        >
-          ข้อมูลในเครื่องยังไม่ได้ซิงก์ขึ้นระบบ
-          กรุณาตรวจสอบการเชื่อมต่อก่อนใช้งานจากเครื่องอื่น
         </div>
       )}
       {children(

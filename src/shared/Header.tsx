@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Bell, Menu, Moon, Sun, X } from "lucide-react";
+import { Menu, Moon, Sun, X } from "lucide-react";
 import { firstDayOfFiscalYear } from "../shared/funtion/fiscalYear";
+import NotificationBell from "./components/NotificationBell";
 
 type HeaderProps = {
   active: string;
@@ -39,7 +40,6 @@ export default function Header({
   demo = false,
   onLogin,
 }: HeaderProps) {
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [opening, setOpening] = useState(false);
   const [newYear, setNewYear] = useState(fiscalYear + 1);
   const [carry, setCarry] = useState(true);
@@ -111,22 +111,7 @@ export default function Header({
             >
               {yearOptions}
             </select> : <button type="button" onClick={onLogin} className="hidden rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200 motion-safe:transition-all hover:-translate-y-0.5 hover:shadow-lg dark:shadow-blue-950 lg:block">ทดลองใช้งาน 30 วัน</button>}
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => setNotificationsOpen((value) => !value)}
-                aria-label="การแจ้งเตือน"
-                aria-expanded={notificationsOpen}
-                className="grid size-10 place-items-center rounded-xl text-slate-600 motion-safe:transition-all hover:-translate-y-0.5 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-200 dark:hover:bg-slate-800"
-              >
-                <Bell size={20} />
-              </button>
-              {notificationsOpen && (
-                <div className="absolute right-0 top-12 z-40 w-60 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                  ไม่มีการแจ้งเตือนใหม่
-                </div>
-              )}
-            </div>
+            <NotificationBell demo={demo} />
             <button
               type="button"
               onClick={onToggleDark}
@@ -234,3 +219,4 @@ export default function Header({
     </>
   );
 }
+

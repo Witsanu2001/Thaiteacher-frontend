@@ -433,9 +433,6 @@ export default function ChatGiminiAIPage({
             {isSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
           </button>
         </form>
-        <p className="mx-auto mt-2 max-w-3xl text-center text-[11px] text-slate-400">
-          กด Enter เพื่อส่ง · Shift + Enter เพื่อขึ้นบรรทัดใหม่ · AI อาจให้ข้อมูลคลาดเคลื่อน โปรดตรวจสอบก่อนใช้
-        </p>
       </div>
     </section>
   );

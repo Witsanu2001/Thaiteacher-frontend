@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { User } from "firebase/auth";
 import { createPortal } from "react-dom";
 import {
   FileDown,
@@ -9,13 +10,14 @@ import {
   Trash2,
 } from "lucide-react";
 import DailyReportExport from "./DailyReportExport";
+import FinanceBackupPanel from "./FinanceBackupPanel";
+import type { DailyReport } from "../../shared/funtion/types";
 import {
   loadReportExports,
   removeReportExport,
   type ReportExportRecord,
 } from "../../shared/funtion/reportExportArchive";
 import { thaiDate } from "../../shared/funtion/thaiDate";
-import { fiscalYearOf } from "../../shared/funtion/fiscalYear";
 
 const formatStyle = {
   Excel: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
@@ -37,27 +39,27 @@ function ExportFormatIcon({ format }: { format: ReportExportRecord["format"] }) 
 
 export default function ExportArchivePage({
   school,
-  fiscalYear,
+  reports,
+  user,
+  viewAsUid,
+  demo,
   onPreviewCurrent,
 }: {
   school: string;
-  fiscalYear: number;
+  reports: DailyReport[];
+  user?: User;
+  viewAsUid?: string;
+  demo: boolean;
   onPreviewCurrent?: () => void;
 }) {
   const [items, setItems] = useState<ReportExportRecord[]>(() =>
-    loadReportExports(school).filter(
-      (item) => fiscalYearOf(item.date) === fiscalYear,
-    ),
+    loadReportExports(school),
   );
   const [selected, setSelected] = useState<ReportExportRecord | null>(null);
   const remove = (id: string) => {
     if (!window.confirm("ลบประวัติรายการส่งออกนี้?")) return;
     removeReportExport(school, id);
-    setItems(
-      loadReportExports(school).filter(
-        (item) => fiscalYearOf(item.date) === fiscalYear,
-      ),
-    );
+    setItems(loadReportExports(school));
   };
   const created = (iso: string) =>
     new Intl.DateTimeFormat("th-TH", {
@@ -67,6 +69,7 @@ export default function ExportArchivePage({
     }).format(new Date(iso));
   return (
     <div className="space-y-5">
+      <FinanceBackupPanel school={school} reports={reports} user={user} viewAsUid={viewAsUid} demo={demo} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold">เอกสารที่เคยส่งออก</h2>
@@ -151,11 +154,7 @@ export default function ExportArchivePage({
             archive={{ layout: selected.layout, config: selected.config }}
             onClose={() => {
               setSelected(null);
-              setItems(
-                loadReportExports(school).filter(
-                  (item) => fiscalYearOf(item.date) === fiscalYear,
-                ),
-              );
+              setItems(loadReportExports(school));
             }}
           />,
           document.body,
