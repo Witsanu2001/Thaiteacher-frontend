@@ -15,6 +15,7 @@ import {
   setViewingUser,
 } from "./funtion/scopedStorage";
 import {
+  menuConfig,
   pageFromPath,
   pathForPage,
 } from "./menu";
@@ -71,7 +72,14 @@ function AppContent({
   }, []);
   const navigate = useCallback((page: string, incomeExpenseCategory?: string) => {
     if (page === "Dashboard" || page === "ผู้ใช้งาน" || page === "เคลียร์ข้อมูลผู้ใช้") stopViewing();
-    routerNavigate(pathForPage(page, isAdmin ? "superAdmin" : "teacher"), {
+    const role =
+      isAdmin &&
+      menuConfig.some(
+        (item) => item.label === page && item.role === "superAdmin",
+      )
+        ? "superAdmin"
+        : "teacher";
+    routerNavigate(pathForPage(page, role), {
       state: incomeExpenseCategory
         ? { incomeExpenseCategory }
         : null,

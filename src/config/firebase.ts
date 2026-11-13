@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCxxxggh4zcIrH5UUKObGCAom8E5b31gfQ",
@@ -18,3 +19,6 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+export const realtimeDb = import.meta.env.VITE_FIREBASE_DATABASE_URL
+  ? getDatabase(app, import.meta.env.VITE_FIREBASE_DATABASE_URL)
+  : null;

@@ -28,6 +28,7 @@ export const menuConfig: MenuItem[] = [
     role: "teacher",
   },
   { label: "สัญญาการยืมเงิน", path: "/finance/loan-contracts", role: "teacher" },
+  { label: "โครงการ", path: "/finance/projects", role: "teacher" },
   { label: "ส่งออกทะเบียน", path: "/finance/exports", role: "teacher" },
   {
     label: "จัดแบบฟอร์มรายงาน",

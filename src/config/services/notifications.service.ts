@@ -1,5 +1,7 @@
 import axios from "axios";
 import type { User } from "firebase/auth";
+import { onValue, ref } from "firebase/database";
+import { realtimeDb } from "../firebase";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 
@@ -18,6 +20,28 @@ export async function listNotifications(user: User): Promise<AppNotification[]> 
     headers: { Authorization: `Bearer ${token}` },
   });
   return data;
+}
+
+export function subscribeNotificationSignal(user: User, onChange: () => void): () => void {
+  let lastFallbackRefresh = Date.now();
+  const onFocus = () => {
+    if (Date.now() - lastFallbackRefresh < 60_000) return;
+    lastFallbackRefresh = Date.now();
+    onChange();
+  };
+  let focusAttached = false;
+  const fallback = () => { if (!focusAttached) { window.addEventListener("focus", onFocus); focusAttached = true; } };
+  if (!realtimeDb) {
+    fallback();
+    onChange();
+    return () => window.removeEventListener("focus", onFocus);
+  }
+  const unsubscribe = onValue(ref(realtimeDb, `notificationSignals/${user.uid}`), onChange, error => {
+    console.error("Realtime notifications unavailable", error);
+    fallback();
+    onChange();
+  });
+  return () => { unsubscribe(); window.removeEventListener("focus", onFocus); };
 }
 
 export async function markNotificationRead(user: User, id: string): Promise<void> {

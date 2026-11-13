@@ -84,6 +84,7 @@ export default function SchoolFinancePage({
   viewAsUid,
   demo = false,
   onLogin,
+  aiAllowed = false,
 }: {
   onMenu: () => void;
   dark: boolean;
@@ -94,6 +95,7 @@ export default function SchoolFinancePage({
   viewAsUid?: string;
   demo?: boolean;
   onLogin?: () => void;
+  aiAllowed?: boolean;
 }) {
   const { pathname } = useLocation();
   const active = pageFromPath(pathname);
@@ -717,6 +719,7 @@ export default function SchoolFinancePage({
       <Header
         demo={demo}
         onLogin={onLogin}
+        aiAllowed={aiAllowed}
         active={active}
         schoolName={school?.name}
         onMenu={onMenu}

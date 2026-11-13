@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Menu, Moon, Sun, X } from "lucide-react";
 import { firstDayOfFiscalYear } from "../shared/funtion/fiscalYear";
 import NotificationBell from "./components/NotificationBell";
+import AiHeaderButton from "./components/AiHeaderButton";
 
 type HeaderProps = {
   active: string;
@@ -18,6 +19,7 @@ type HeaderProps = {
   ) => Promise<string | undefined>;
   demo?: boolean;
   onLogin?: () => void;
+  aiAllowed?: boolean;
 };
 const PageTitle = ({ active }: { active: string }) => (
   <>
@@ -39,6 +41,7 @@ export default function Header({
   onCreateFiscalYear,
   demo = false,
   onLogin,
+  aiAllowed = false,
 }: HeaderProps) {
   const [opening, setOpening] = useState(false);
   const [newYear, setNewYear] = useState(fiscalYear + 1);
@@ -110,7 +113,8 @@ export default function Header({
               className="hidden max-w-44 rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-800 shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200 lg:block"
             >
               {yearOptions}
-            </select> : <button type="button" onClick={onLogin} className="hidden rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200 motion-safe:transition-all hover:-translate-y-0.5 hover:shadow-lg dark:shadow-blue-950 lg:block">ทดลองใช้งาน 30 วัน</button>}
+            </select> : <button type="button" onClick={onLogin} className="hidden rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200 motion-safe:transition-all hover:-translate-y-0.5 hover:shadow-lg dark:shadow-blue-950 lg:block">ทดลองใช้งาน 9 วัน</button>}
+            {aiAllowed && !demo && <AiHeaderButton to="/finance/gimini-ai" />}
             <NotificationBell demo={demo} />
             <button
               type="button"
@@ -133,7 +137,7 @@ export default function Header({
             className="max-w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-800 shadow-sm dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200"
           >
             {yearOptions}
-          </select> : <button type="button" onClick={onLogin} className="rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 px-3 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200 motion-safe:transition-transform hover:-translate-y-0.5 dark:shadow-blue-950">ทดลองใช้งาน 30 วัน</button>}
+          </select> : <button type="button" onClick={onLogin} className="rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 px-3 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200 motion-safe:transition-transform hover:-translate-y-0.5 dark:shadow-blue-950">ทดลองใช้งาน 9 วัน</button>}
         </div>
       </header>
       {opening && (

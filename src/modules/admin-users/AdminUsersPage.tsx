@@ -58,7 +58,7 @@ function statusOf(profile: UserProfile, now: number) {
   const until =
     plan === "paid"
       ? new Date(profile.paidUntil || "").getTime()
-      : new Date(profile.createdAt || "").getTime() + 30 * 86400000;
+      : new Date(profile.createdAt || "").getTime() + 9 * 86400000;
   const days = Math.max(0, Math.ceil((until - now) / 86400000));
   if (Number.isFinite(until) && until > now)
     return {
@@ -211,7 +211,7 @@ export default function AdminUsersPage({
             <div>
               <h2 className="font-semibold">ผู้ใช้งาน</h2>
               <p className="text-sm text-slate-500">
-                {loading ? "กำลังโหลด…" : `${activeUsers.length} บัญชี`}
+                {!loading && `${activeUsers.length} บัญชี`}
               </p>
             </div>
           </div>
@@ -234,11 +234,7 @@ export default function AdminUsersPage({
           </p>
         )}
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-          {loading ? (
-            <p className="p-8 text-center text-sm text-slate-500">
-              กำลังโหลดรายชื่อผู้ใช้…
-            </p>
-          ) : filtered.length === 0 ? (
+          {loading ? null : filtered.length === 0 ? (
             <p className="p-8 text-center text-sm text-slate-500">
               ไม่พบผู้ใช้
             </p>

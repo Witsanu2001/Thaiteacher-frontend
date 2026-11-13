@@ -1,0 +1,42 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "supportSignals": {
+      "admin": {
+        ".read": "auth != null && auth.token.role === 'supperAdmin'"
+      },
+      "conversations": {
+        "$uid": {
+          ".read": "auth != null && (auth.uid === $uid || auth.token.role === 'supperAdmin')"
+        }
+      }
+    },
+    "notificationSignals": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid"
+      }
+    },
+    "supportPresence": {
+      "users": {
+        ".read": "auth != null && auth.token.role === 'supperAdmin'",
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          "$connection": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.hasChildren(['connectedAt']) && newData.child('connectedAt').isNumber()"
+          }
+        }
+      },
+      "team": {
+        ".read": "auth != null",
+        "$uid": {
+          "$connection": {
+            ".write": "auth != null && auth.uid === $uid && auth.token.role === 'supperAdmin'",
+            ".validate": "newData.hasChildren(['connectedAt']) && newData.child('connectedAt').isNumber()"
+          }
+        }
+      }
+    }
+  }
+}

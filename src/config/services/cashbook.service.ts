@@ -2,6 +2,7 @@ import axios from "axios";
 import type { User } from "firebase/auth";
 import type { CashbookEntry } from "../../shared/funtion/types";
 import { activeDataVersion } from "../../shared/funtion/scopedStorage";
+import { projectRemark } from "../../shared/funtion/projectRemark";
 
 export type StoredCashbookEntry = CashbookEntry & { version: string };
 const API_URL = import.meta.env.VITE_API_URL ?? "";
@@ -13,7 +14,7 @@ async function headers(user: User) {
 
 export async function loadCashbookEntries(user: User, viewAsUid?: string): Promise<StoredCashbookEntry[]> {
   const response = await axios.get<StoredCashbookEntry[]>(url(viewAsUid), { headers: await headers(user) });
-  return response.data;
+  return response.data.map(entry => ({ ...entry, note: projectRemark(entry.note || "") }));
 }
 
 export async function saveCashbookEntry(user: User, entry: CashbookEntry, expectedVersion?: string, viewAsUid?: string): Promise<StoredCashbookEntry> {

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { Bell, X } from "lucide-react";
-import { auth } from "../../config/firebase";
+import { auth, realtimeDb } from "../../config/firebase";
 import {
   listNotifications,
   markNotificationRead,
+  subscribeNotificationSignal,
   type AppNotification,
 } from "../../config/services/notifications.service";
 
@@ -14,32 +15,32 @@ export default function NotificationBell({ demo = false }: { demo?: boolean }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const requestRef = useRef(false);
+  const requestsRef = useRef(new Set<string>());
+  const pendingRef = useRef(new Set<string>());
 
-  useEffect(() => onAuthStateChanged(auth, setUser), []);
+  useEffect(() => onAuthStateChanged(auth, next => { setUser(next); setItems([]); setError(false); }), []);
 
   const refresh = useCallback(async () => {
-    if (!user || demo || requestRef.current) return;
-    requestRef.current = true;
+    if (!user || demo) return;
+    const uid = user.uid;
+    if (requestsRef.current.has(uid)) { pendingRef.current.add(uid); return; }
+    requestsRef.current.add(uid);
     try {
-      setItems(await listNotifications(user));
-      setError(false);
-    } catch {
-      setError(true);
+      do {
+        pendingRef.current.delete(uid);
+        try {
+          const notifications = await listNotifications(user);
+          if (auth.currentUser?.uid === uid) { setItems(notifications); setError(false); }
+        } catch { if (auth.currentUser?.uid === uid) setError(true); }
+      } while (pendingRef.current.has(uid));
     } finally {
-      requestRef.current = false;
+      requestsRef.current.delete(uid);
     }
   }, [user, demo]);
 
   useEffect(() => {
     if (!user || demo) return;
-    const initialLoad = window.setTimeout(() => void refresh(), 0);
-    const onVisible = () => { if (document.visibilityState === "visible") void refresh(); };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      window.clearTimeout(initialLoad);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
+    return subscribeNotificationSignal(user, () => { void refresh(); });
   }, [user, demo, refresh]);
 
   useEffect(() => {
@@ -70,7 +71,7 @@ export default function NotificationBell({ demo = false }: { demo?: boolean }) {
 
   return (
     <div ref={panelRef} className="relative shrink-0">
-      <button type="button" onClick={() => { setOpen((value) => !value); if (!open) void refresh(); }}
+      <button type="button" onClick={() => { setOpen((value) => !value); if (!open && !realtimeDb) void refresh(); }}
         aria-label={unread ? `การแจ้งเตือน ยังไม่อ่าน ${unread} รายการ` : "เปิดการแจ้งเตือน"}
         aria-expanded={open} className="relative grid size-10 place-items-center rounded-xl text-slate-600 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-200 dark:hover:bg-slate-800">
         <Bell size={20} />

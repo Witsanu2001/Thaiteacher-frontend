@@ -1,5 +1,6 @@
 import type { DailyReport, FinanceSchool } from "../../shared/funtion/types";
 import { scopedStorage, setStorageUser, configureStorageSync } from "../../shared/funtion/scopedStorage";
+import { projectRemark } from "../../shared/funtion/projectRemark";
 
 const demoUserId = "public-demo";
 export const demoSchoolName = "โรงเรียนตัวอย่าง";
@@ -37,7 +38,7 @@ export function enterDemoScope() {
 
 export function loadDemoReports(): DailyReport[] {
   const schools = readDemoSchools();
-  return schools.find(school => school.name === demoSchoolName)?.reports || [];
+  return (schools.find(school => school.name === demoSchoolName)?.reports || []).map(report => ({ ...report, rows: report.rows.map(row => ({ ...row, note: projectRemark(row.note || "") })) }));
 }
 
 export function saveDemoReports(reports: DailyReport[]) {

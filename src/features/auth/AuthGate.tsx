@@ -30,6 +30,8 @@ import {
 import { loadAppState, writeAppState } from "../../config/services/app-state.service";
 import {
   createPaymentRequest,
+  acceptLegal,
+  getLegalAcceptance,
   getPaymentRequests,
   getProfile,
   recordVisit,
@@ -38,6 +40,7 @@ import {
   type UserProfile,
 } from "../../config/services/users.service";
 import DemoApp from "./DemoApp";
+import { legalVersion, privacySections, termsIntroduction, termsSections } from "../../shared/legalContent";
 
 type Profile = Omit<UserProfile, "createdAt" | "paidUntil"> & {
   createdAt: Timestamp | null;
@@ -155,6 +158,11 @@ export default function AuthGate({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [missingAdminClaim, setMissingAdminClaim] = useState(false);
+  const [legalAccepted, setLegalAccepted] = useState<boolean | null>(null);
+  const [legalError, setLegalError] = useState("");
+  const [acceptTermsChecked, setAcceptTermsChecked] = useState(false);
+  const [privacyChecked, setPrivacyChecked] = useState(false);
+  const [legalStep, setLegalStep] = useState<1 | 2>(1);
   const [showDemo, setShowDemo] = useState(true);
   const [form, setForm] = useState({
     displayName: "",
@@ -182,6 +190,9 @@ export default function AuthGate({
       setPayments([]);
       setError("");
       setMissingAdminClaim(false);
+      setLegalAccepted(null);
+      setLegalError("");
+      setLegalStep(1);
       if (!current) {
         visitSessionIds.clear();
         setLoading(false);
@@ -292,6 +303,34 @@ export default function AuthGate({
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!user || !profile || legalAccepted !== null || profile.role === "supperAdmin" || profile.status === "clearing" || profile.status === "cleared" || !hasRegistration(profile)) return;
+    let active = true;
+    void getLegalAcceptance(user)
+      .then(result => { if (active) { setLegalAccepted(result.accepted); setLegalError(""); } })
+      .catch(() => { if (active) setLegalError("ตรวจสอบการยอมรับข้อตกลงไม่สำเร็จ กรุณาลองใหม่"); });
+    return () => { active = false; };
+  }, [user, profile, legalAccepted]);
+
+  const confirmLegal = async () => {
+    if (!user || !acceptTermsChecked || !privacyChecked) return;
+    setBusy(true);
+    setLegalError("");
+    try {
+      await acceptLegal(user, legalVersion);
+      setLegalAccepted(true);
+    } catch {
+      setLegalError("บันทึกการยอมรับไม่สำเร็จ กรุณาลองอีกครั้ง");
+    } finally { setBusy(false); }
+  };
+  const retryLegal = () => {
+    if (!user) return;
+    setLegalError("");
+    void getLegalAcceptance(user)
+      .then(result => setLegalAccepted(result.accepted))
+      .catch(() => setLegalError("ตรวจสอบการยอมรับข้อตกลงไม่สำเร็จ กรุณาลองใหม่"));
+  };
+
   const login = async () => {
     setBusy(true);
     setError("");
@@ -368,7 +407,7 @@ export default function AuthGate({
   if (loading)
     return (
       <main className="grid min-h-screen place-items-center bg-slate-950 text-white">
-        กำลังตรวจสอบบัญชี…
+        <span role="status" aria-label="กำลังตรวจสอบบัญชี" className="size-10 motion-safe:animate-spin rounded-full border-[3px] border-blue-200/40 border-t-sky-300"/>
       </main>
     );
   if (!user && showDemo)
@@ -393,7 +432,7 @@ export default function AuthGate({
             ยินดีต้อนรับสู่ ThaiTeacher
           </h1>
           <p className="mt-2 text-center text-sm text-slate-500 dark:text-slate-400">
-            เข้าสู่ระบบเพื่อจัดการการเงินของโรงเรียน ทดลองใช้งานฟรี 30
+            เข้าสู่ระบบเพื่อจัดการการเงินของโรงเรียน ทดลองใช้งานฟรี 9
             วันนับจากครั้งแรกที่เข้าสู่ระบบ
           </p>
           {error && (
@@ -469,7 +508,7 @@ export default function AuthGate({
       </main>
     );
 
-  const trialEnd = (profile.createdAt?.toMillis() ?? NaN) + 30 * DAY;
+  const trialEnd = (profile.createdAt?.toMillis() ?? NaN) + 9 * DAY;
   const paidEnd = profile.paidUntil?.toMillis() || 0;
   const plan = profile.plan || (profile.paidUntil ? "paid" : "trial");
   const trialActive =
@@ -586,6 +625,29 @@ export default function AuthGate({
             ออกจากระบบ
           </button>
         </form>
+      </main>
+    );
+
+  if (profile.role !== "supperAdmin" && legalAccepted !== true)
+    return (
+      <main className="flex min-h-dvh flex-col bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-white">
+        <header className="border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-8">
+          <div className="flex w-full items-center justify-between gap-4">
+            <img src="/haiteacher-brand.png" alt="ThaiTeacher" className="h-12 w-auto max-w-40 object-contain" />
+            <span className="rounded-full bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">ขั้นตอน {legalStep} จาก 2</span>
+          </div>
+        </header>
+        <div className="w-full flex-1 px-4 py-5 sm:px-7 sm:py-7 lg:px-10">
+          {legalAccepted === null ? <div className="text-sm text-slate-500">{legalError ? <><p role="alert" className="text-rose-600">{legalError}</p><button type="button" onClick={retryLegal} className="mt-3 rounded-xl bg-blue-600 px-4 py-2 font-semibold text-white">ลองใหม่</button></> : "กำลังตรวจสอบข้อมูล..."}</div> : <>
+            <div className="mb-5"><p className="text-xs font-semibold text-blue-600 dark:text-blue-300">ก่อนเริ่มใช้งาน ThaiTeacher</p><h1 className="mt-1 text-2xl font-bold sm:text-3xl">{legalStep === 1 ? "ข้อตกลงการให้บริการ" : "ประกาศความเป็นส่วนตัว"}</h1><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{legalStep === 1 ? "โปรดอ่านเงื่อนไขการใช้งานก่อนดำเนินการต่อ" : "โปรดอ่านวิธีที่ระบบใช้และเก็บรักษาข้อมูลของคุณ"}</p></div>
+            <article className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {legalStep === 1 ? <><p className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-slate-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-slate-200 md:col-span-2 xl:col-span-3">{termsIntroduction}</p>{termsSections.map(({ title, body }) => <section key={title} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"><h2 className="font-bold">{title}</h2><p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{body}</p></section>)}</> : privacySections.map(({ title, body }) => <section key={title} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"><h2 className="font-bold">{title}</h2><p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{body}</p></section>)}
+            </article>
+            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm leading-6 dark:border-blue-900 dark:bg-blue-950/40"><input type="checkbox" checked={legalStep === 1 ? acceptTermsChecked : privacyChecked} onChange={event => legalStep === 1 ? setAcceptTermsChecked(event.target.checked) : setPrivacyChecked(event.target.checked)} className="mt-1 size-5 shrink-0 accent-blue-600" /><span>{legalStep === 1 ? "ฉันได้อ่านและยอมรับข้อตกลงการให้บริการฉบับนี้" : "ฉันได้อ่านและรับทราบประกาศความเป็นส่วนตัวฉบับนี้"}</span></label>
+            {legalError && <p role="alert" className="mt-3 text-sm text-rose-600">{legalError}</p>}
+          </>}
+        </div>
+        {legalAccepted === false && <footer className="border-t border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900 sm:px-7 lg:px-10"><div className="flex w-full items-center justify-between gap-3"><button type="button" onClick={() => legalStep === 2 ? (setLegalStep(1), window.scrollTo(0, 0)) : void signOut(auth)} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold dark:border-slate-700">{legalStep === 2 ? "ย้อนกลับ" : "ออกจากระบบ"}</button><button type="button" onClick={() => legalStep === 1 ? (setLegalStep(2), window.scrollTo(0, 0)) : void confirmLegal()} disabled={legalStep === 1 ? !acceptTermsChecked : !privacyChecked || busy} className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{legalStep === 1 ? "ถัดไป" : busy ? "กำลังบันทึก..." : "ยอมรับและเริ่มใช้งาน"}</button></div></footer>}
       </main>
     );
 
@@ -713,3 +775,4 @@ export default function AuthGate({
     </>
   );
 }
+

@@ -1,7 +1,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowRightLeft, BookOpen, FileDown, FileText, LayoutDashboard, LogIn, LogOut, Megaphone, MessageCircle, Settings, Settings2, Sparkles, Trash2, UsersRound, Wallet, X, type LucideIcon } from "lucide-react";
+import { ArrowRightLeft, BookOpen, Cookie, FileDown, FileText, FolderKanban, LayoutDashboard, LogIn, LogOut, Megaphone, MessageCircle, Settings, Settings2, Sparkles, Trash2, UsersRound, Wallet, X, type LucideIcon } from "lucide-react";
 import { menuConfig } from "./menu";
 
 const menuIcons: Record<string, LucideIcon> = {
@@ -15,6 +15,7 @@ const menuIcons: Record<string, LucideIcon> = {
   "รายรับ–รายจ่าย": ArrowRightLeft,
   "ใบสำคัญและหลักฐาน": FileText,
   "สัญญาการยืมเงิน": FileText,
+  "โครงการ": FolderKanban,
   "ส่งออกทะเบียน": FileDown,
   "จัดแบบฟอร์มรายงาน": Settings2,
   "ติดต่อเรา": MessageCircle,
@@ -208,25 +209,8 @@ function Menu({
             })}
         </nav>
 
-        {/* Bottom Section: AI + User Profile */}
+        {/* User Profile */}
         <div className="mt-auto flex shrink-0 flex-col gap-3 pt-3">
-          {(isSupperAdmin || accessState === "lifetime") && <button
-            type="button"
-            onClick={() => nav("ผู้ช่วย AI")}
-            aria-current={active === "ผู้ช่วย AI" ? "page" : undefined}
-            className="w-full rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-blue-50 p-3 text-left shadow-sm transition hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500 dark:border-violet-900 dark:from-violet-950 dark:to-slate-900"
-          >
-            <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-violet-800 dark:text-violet-200">
-              <Sparkles size={14} />
-              ผู้ช่วย AI
-            </div>
-            <p className="my-1 text-[10px] leading-4 text-violet-600 dark:text-violet-300">
-              ตรวจทะเบียนและค้นหาความผิดปกติ
-            </p>
-            <span className="mt-1 block text-[10px] font-semibold text-violet-700 underline-offset-2 hover:underline dark:text-violet-300">
-              เปิดผู้ช่วย ↗
-            </span>
-          </button>}
           {/* User Profile */}
           <div
             ref={accountMenuRef}
@@ -298,6 +282,18 @@ function Menu({
                 >
                   <Settings2 size={16} />
                   ตั้งค่าระบบ
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    window.dispatchEvent(new Event("thaiteacher:open-legal"));
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-300"
+                >
+                  <Cookie size={16} />
+                  คุกกี้และข้อตกลง
                 </button>
                 <button
                   type="button"

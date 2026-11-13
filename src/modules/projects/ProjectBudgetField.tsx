@@ -1,0 +1,24 @@
+import { useState } from "react";
+import { formatMoneyInput, parseMoneyInput } from "./moneyFormat";
+
+export default function ProjectBudgetField({ value, onChange, className, label }: {
+  value: number;
+  onChange: (value: number) => void;
+  className: string;
+  label: string;
+}) {
+  const [text, setText] = useState(() => formatMoneyInput(String(value)));
+  return <input
+    aria-label={label}
+    type="text"
+    inputMode="decimal"
+    autoComplete="off"
+    value={text}
+    onChange={(event) => {
+      const next = formatMoneyInput(event.target.value);
+      setText(next);
+      onChange(parseMoneyInput(next));
+    }}
+    className={className}
+  />;
+}

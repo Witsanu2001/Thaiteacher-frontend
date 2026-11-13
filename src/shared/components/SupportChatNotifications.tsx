@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { MessageCircle, X } from "lucide-react";
 import type { User } from "firebase/auth";
 import {
-  listSupportMessages,
+  subscribeSupportMessages,
   type SupportMessage,
 } from "../../config/services/customer.service";
 
@@ -22,17 +22,7 @@ export default function SupportChatNotifications({
   const initialized = useRef(false);
 
   useEffect(() => {
-    let active = true;
-    let checking = false;
-    let errorLogged = false;
-
-    const checkMessages = async () => {
-      if (checking) return;
-      checking = true;
-      try {
-        const messages = await listSupportMessages(user);
-        if (!active) return;
-
+    const unsubscribe = subscribeSupportMessages(user, messages => {
         const supportMessages = messages.filter(
           (message) => message.senderRole === "support",
         );
@@ -57,23 +47,8 @@ export default function SupportChatNotifications({
           seenMessageIds.current.add(message.id),
         );
         initialized.current = true;
-        errorLogged = false;
-      } catch (error) {
-        if (!errorLogged) {
-          console.error("Failed to check support chat messages", error);
-          errorLogged = true;
-        }
-      } finally {
-        checking = false;
-      }
-    };
-
-    void checkMessages();
-    const interval = window.setInterval(() => void checkMessages(), 10_000);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-    };
+    });
+    return unsubscribe;
   }, [user, onUnreadCountChange]);
 
   useEffect(() => {

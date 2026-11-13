@@ -56,6 +56,9 @@ export const getProfile = (user: User): Promise<UserProfile> => {
 };
 export const updateProfile = (user: User, profile: Pick<UserProfile, "displayName" | "phone" | "position" | "schoolName">) =>
   request<UserProfile>(user, "PATCH", "", profile);
+export type LegalAcceptance = { uid: string; version: string; acceptedAt: string; termsText: string; privacyText: string; accountEmail: string };
+export const getLegalAcceptance = (user: User) => request<{ accepted: boolean; version: string; acceptance: LegalAcceptance | null }>(user, "GET", "/legal/acceptance");
+export const acceptLegal = (user: User, version: string) => request<LegalAcceptance>(user, "POST", "/legal/acceptance", { version, acceptTerms: true, acknowledgePrivacy: true });
 export const getPaymentRequests = (user: User) => request<PaymentRequest[]>(user, "GET", "/payments");
 export const createPaymentRequest = (user: User, payment: Pick<PaymentRequest, "id" | "amount" | "slipPath">) =>
   request<PaymentRequest>(user, "POST", "/payments", payment);

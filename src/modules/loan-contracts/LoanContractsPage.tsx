@@ -672,15 +672,7 @@ export default function LoanContractsPage({
       setMessage("เปิดเอกสารแนบไม่สำเร็จ กรุณาลองใหม่");
     }
   };
-  if (loading)
-    return (
-      <p
-        role="status"
-        className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
-      >
-        กำลังโหลดสัญญายืมเงิน...
-      </p>
-    );
+  if (loading) return null;
   if (loadFailed)
     return (
       <div

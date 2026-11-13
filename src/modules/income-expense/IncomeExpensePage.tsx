@@ -94,7 +94,7 @@ export default function IncomeExpensePage({
   useEffect(() => {
     if (demo || !user) return;
     let active = true;
-    void (async () => {
+    const refresh = async () => {
       try {
         const remote = await loadCashbookEntries(user, viewAsUid);
         if (!active) return;
@@ -112,8 +112,10 @@ export default function IncomeExpensePage({
         if (scopedStorage.getItem(linkedKey(school)) !== linked) scopedStorage.setItem(linkedKey(school), linked);
       } catch { if (active) setSyncMessage("โหลดรายการรับ–จ่ายจากระบบไม่สำเร็จ กรุณาโหลดหน้าใหม่ก่อนบันทึก"); }
       finally { if (active) setLoadingEntries(false); }
-    })();
-    return () => { active = false; };
+    };
+    void refresh();
+    window.addEventListener("project-expenses-changed", refresh);
+    return () => { active = false; window.removeEventListener("project-expenses-changed", refresh); };
   }, [demo, user, viewAsUid, school]);
   const [loanEntries, setLoanEntries] = useState<Entry[]>([]);
   useEffect(() => {
@@ -334,7 +336,7 @@ export default function IncomeExpensePage({
   };
   return (
     <div className="space-y-5">
-      {(syncMessage || loadingEntries) && <p role={syncMessage ? "alert" : "status"} className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">{syncMessage || "กำลังโหลดรายการรับ–จ่ายล่าสุด..."}</p>}
+      {syncMessage && <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">{syncMessage}</p>}
       {legacyCount > 0 && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">มีรายการเก่า {legacyCount} รายการที่บันทึกก่อนเชื่อมรายงาน ระบบไม่ปรับยอดย้อนหลังอัตโนมัติเพื่อป้องกันการนับซ้ำ</p>}
       {Math.abs(registerDifference) >= 0.01 && <p className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">ยอดยกมาและรายการในทะเบียนยังไม่ตรงกับรายงาน ต่างกัน ฿ {money(Math.abs(registerDifference))} · โปรดตรวจรายการที่ยังไม่ได้บันทึกในทะเบียน</p>}
       <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:flex-row lg:items-center sm:p-5">
@@ -530,14 +532,14 @@ export default function IncomeExpensePage({
                       <FileText size={18} />
                     </a>
                   )}
-                  {!entry.id.startsWith("loan:") && <button
+                  {!entry.id.startsWith("loan:") && !entry.id.startsWith("pexp_") && <button
                     onClick={() => start(entry.kind, entry)}
                     aria-label="แก้ไขรายการ"
                     className="p-1 text-blue-700"
                   >
                     <Pencil size={18} />
                   </button>}
-                  {!entry.id.startsWith("loan:") && <button
+                  {!entry.id.startsWith("loan:") && !entry.id.startsWith("pexp_") && <button
                     onClick={() => void remove(entry)}
                     disabled={savingEntry}
                     aria-label="ลบรายการ"
@@ -632,14 +634,14 @@ export default function IncomeExpensePage({
                     )}
                   </td>
                   <td className="whitespace-nowrap px-2 py-3 text-center">
-                    {!entry.id.startsWith("loan:") && <button
+                    {!entry.id.startsWith("loan:") && !entry.id.startsWith("pexp_") && <button
                       onClick={() => start(entry.kind, entry)}
                       aria-label="แก้ไขรายการ"
                       className="rounded p-2 text-blue-700 hover:bg-blue-50 dark:text-blue-300"
                     >
                       <Pencil size={16} />
                     </button>}
-                    {!entry.id.startsWith("loan:") && <button
+                    {!entry.id.startsWith("loan:") && !entry.id.startsWith("pexp_") && <button
                       onClick={() => void remove(entry)}
                       disabled={savingEntry}
                       aria-label="ลบรายการ"

@@ -300,7 +300,7 @@ export default function BroadcastSupportMessageDialog({
                   </button>
                   <div className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-slate-700">
                     {profilesLoading ? (
-                      <p className="p-3 text-sm text-slate-500">กำลังโหลดรายชื่อ…</p>
+                      null
                     ) : profilesError ? (
                       <p role="alert" className="p-3 text-sm text-rose-600">{profilesError}</p>
                     ) : filteredUsers.length === 0 ? (

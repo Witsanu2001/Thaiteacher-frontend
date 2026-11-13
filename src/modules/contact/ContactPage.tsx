@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import type { User } from "firebase/auth";
 import { CircleHelp, CreditCard, FileSpreadsheet, MessageCircle, Paperclip, SendHorizontal, X } from "lucide-react";
-import { downloadSupportAttachment, getSupportPresence, listSupportMessages, markSupportMessageRead, sendSupportMessage, sendUserPresence, uploadSupportAttachment, type SupportMessage } from "../../config/services/customer.service";
+import { downloadSupportAttachment, markSupportMessageRead, sendSupportMessage, subscribeSupportMessages, uploadSupportAttachment, type SupportMessage } from "../../config/services/customer.service";
+import { connectUserPresence, subscribeStaffPresence } from "../../config/services/supportPresence.service";
 
 type ChatMessage = SupportMessage & { files?: File[] };
 const topics = [
@@ -24,26 +25,18 @@ export default function ContactPage({ user, demo = false }: { user?: User; demo?
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const refresh = useCallback(async () => {
-    if (!user || demo) return;
-    try {
-      const [items, presence] = await Promise.all([listSupportMessages(user), getSupportPresence(user)]);
-      setMessages(items);
-      setOnline(presence.online);
-      setError("");
-      await Promise.allSettled(items.filter(item => item.senderRole === "support" && !item.readAt).map(item => markSupportMessageRead(user, item.id)));
-    } catch { setError("โหลดแชทไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อบริการลูกค้า"); }
-    finally { setLoading(false); }
-  }, [user, demo]);
-
   useEffect(() => {
     if (!user || demo) return;
-    const initial = window.setTimeout(() => { void refresh(); }, 0);
-    void sendUserPresence(user).catch(() => undefined);
-    const poll = window.setInterval(() => { void refresh(); }, 10000);
-    const heartbeat = window.setInterval(() => { void sendUserPresence(user).catch(() => undefined); }, 30000);
-    return () => { window.clearTimeout(initial); window.clearInterval(poll); window.clearInterval(heartbeat); };
-  }, [user, demo, refresh]);
+    const unsubscribe = subscribeSupportMessages(user, items => {
+      setMessages(items);
+      setError("");
+      setLoading(false);
+      void Promise.allSettled(items.filter(item => item.senderRole === "support" && !item.readAt).map(item => markSupportMessageRead(user, item.id)));
+    }, () => { setError("โหลดแชทไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อบริการลูกค้า"); setLoading(false); });
+    const disconnect = connectUserPresence(user);
+    const unsubscribePresence = subscribeStaffPresence(setOnline);
+    return () => { unsubscribe(); disconnect(); unsubscribePresence(); };
+  }, [user, demo]);
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [messages]);
 
   const send = async (event?: FormEvent) => {
@@ -73,7 +66,6 @@ export default function ContactPage({ user, demo = false }: { user?: User; demo?
   return <div className="flex min-h-0 w-full flex-1 flex-col"><section className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-blue-900/5 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
     <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800 sm:px-5"><span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white"><MessageCircle size={22} /></span><div className="min-w-0"><h3 className="font-semibold">ทีม ThaiTeacher</h3><p className="text-xs text-slate-500">{demo ? "ตัวอย่างการสนทนา · ยังไม่ส่งถึงทีมงาน" : online ? "เจ้าหน้าที่ออนไลน์" : "ฝากข้อความไว้ได้ เจ้าหน้าที่จะตอบกลับในแชทนี้"}</p></div><span className={`ml-auto rounded-full px-2.5 py-1 text-xs ${demo ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300" : online ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-slate-100 text-slate-500 dark:bg-slate-800"}`}>{demo ? "ตัวอย่าง" : online ? "ออนไลน์" : "ออฟไลน์"}</span></div>
     <div ref={listRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-gradient-to-b from-sky-50/50 via-white to-white px-4 py-5 dark:from-slate-950/40 dark:via-slate-900 dark:to-slate-900 sm:px-6">
-      {loading && <p className="text-center text-sm text-slate-500">กำลังโหลดบทสนทนา…</p>}
       {!loading && messages.length === 0 && <p className="text-center text-sm text-slate-500">เริ่มสนทนากับทีม ThaiTeacher ได้เลย</p>}
       {messages.map(message => <div key={message.id} className={`flex ${message.senderRole === "user" ? "justify-end" : "justify-start"}`}><div className={`max-w-[86%] sm:max-w-[72%] ${message.senderRole === "user" ? "text-right" : ""}`}><div className={`inline-block rounded-2xl px-4 py-3 text-left text-sm leading-6 shadow-sm ${message.senderRole === "user" ? "rounded-br-md bg-gradient-to-br from-blue-600 to-sky-600 text-white" : "rounded-bl-md border border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"}`}>{message.text && <p className="whitespace-pre-wrap break-words">{message.text}</p>}{message.files?.map((file, index) => <button key={`${file.name}-${index}`} type="button" onClick={() => downloadFile(file)} className="mt-2 flex max-w-full items-center gap-2 rounded-lg bg-white/15 px-2 py-1 text-left hover:underline"><Paperclip size={15} className="shrink-0" /><span className="truncate">{file.name}</span></button>)}{user && message.attachments?.map(file => <button key={file.id} type="button" onClick={() => { void downloadSupportAttachment(user, file).catch(() => setError("ดาวน์โหลดไฟล์ไม่สำเร็จ")); }} className="mt-2 flex max-w-full items-center gap-2 rounded-lg bg-white/15 px-2 py-1 text-left hover:underline"><Paperclip size={15} className="shrink-0" /><span className="truncate">{file.name}</span></button>)}</div><p className="mt-1 px-1 text-[11px] text-slate-400">{message.id === "welcome" ? "ตัวอย่าง" : timeText(message.createdAt)}{message.senderRole === "user" && !demo ? message.readAt ? " · อ่านแล้ว" : " · ส่งแล้ว" : ""}</p></div></div>)}
     </div>

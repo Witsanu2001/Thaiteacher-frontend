@@ -7,6 +7,7 @@ import MoneyRegisterPage from "../modules/money-register/MoneyRegisterPage";
 import IncomeExpensePage from "../modules/income-expense/IncomeExpensePage";
 import VoucherEvidencePage from "../modules/vouchers/VoucherEvidencePage";
 import LoanContractsPage from "../modules/loan-contracts/LoanContractsPage";
+import ProjectWorkspacePage from "../modules/projects/ProjectWorkspacePage";
 import ExportArchivePage from "../modules/exports/ExportArchivePage";
 import ReportFormSettingsPage from "../modules/report-form/ReportFormSettingsPage";
 import AdminDashboardPage from "../modules/admin-dashboard/AdminDashboardPage";
@@ -230,6 +231,7 @@ export default function AppRoutes({
               onNavigate={onNavigate}
               demo={demo}
               onLogin={onLogin}
+              aiAllowed={aiAllowed}
             />
           ) : (
             <Navigate to="/admin/dashboard" replace />
@@ -241,6 +243,7 @@ export default function AppRoutes({
         <Route path="income-expense" element={<IncomeExpense />} />
         <Route path="vouchers" element={<Vouchers />} />
         <Route path="loan-contracts" element={<LoanContracts />} />
+        <Route path="projects" element={<ProjectWorkspacePage />} />
         <Route path="exports" element={<Exports />} />
         <Route path="report-settings" element={<ReportForm />} />
         <Route path="contact" element={<ContactPage user={user} demo={demo} />} />

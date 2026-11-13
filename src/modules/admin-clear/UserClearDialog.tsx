@@ -56,14 +56,14 @@ export default function UserClearDialog({ user, target, onClose, onCleared }: {
       </div>
       <h2 id="clear-user-title" className="mt-4 text-xl font-bold text-slate-900 dark:text-white">เคลียร์ข้อมูลผู้ใช้ทั้งหมด</h2>
       <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{target.displayName || target.email} · {target.email}</p>
-      {loading ? <p className="mt-6 text-sm text-slate-500">กำลังตรวจสอบข้อมูลที่จะลบ…</p> : preview && <>
+      {!loading && preview && <>
         <div className="mt-5 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800"><b className="block text-lg">{preview.budgetReports}</b>รายงาน</div>
           <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800"><b className="block text-lg">{preview.paymentRequests}</b>รายการชำระ</div>
           <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800"><b className="block text-lg">{preview.slipFiles}</b>ไฟล์สลิป</div>
           <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800"><b className="block text-lg">{preview.otherDocuments}</b>เอกสารอื่น</div>
         </div>
-        <p className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">ลบข้อมูลใน Firestore และ Storage แล้วล้างข้อมูลส่วนตัวในโปรไฟล์ บัญชี Google/Firebase Auth ยังอยู่ แต่จะเข้าใช้งานระบบไม่ได้ การลบนี้ย้อนกลับไม่ได้</p>
+        <p className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">ลบข้อมูลการใช้งานใน Firestore และ Storage แล้วล้างข้อมูลส่วนตัวในโปรไฟล์ บัญชี Google/Firebase Auth ยังอยู่ แต่จะเข้าใช้งานระบบไม่ได้ หลักฐานการยอมรับข้อตกลงจะเก็บไว้แยกต่างหาก การลบนี้ย้อนกลับไม่ได้</p>
         <label className="mt-5 block text-sm font-semibold text-slate-800 dark:text-slate-200">พิมพ์อีเมล {preview.email} เพื่อยืนยัน<input autoComplete="off" value={email} onChange={event => setEmail(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 font-normal text-slate-900 outline-none focus:border-rose-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white" /></label>
       </>}
       {error && <p role="alert" className="mt-4 text-sm text-rose-600 dark:text-rose-300">{error}</p>}
