@@ -160,10 +160,24 @@ export default function ProjectWorkspacePage() {
   const yearExpenses = viewExpenses.filter((entry) => yearProjects.some((project) => entry.id.startsWith(`pexp_${project.id}_`)));
   const plannedTotal = yearProjects.reduce((sum, project) => sum + projectBudget(project), 0);
   const spentTotal = yearExpenses.reduce((sum, entry) => sum + entry.amount, 0);
-  const spentByCategory = Object.entries(yearExpenses.reduce<Record<string, number>>((totals, entry) => {
+  const plannedByCategory = yearProjects.reduce<Record<string, number>>((totals, project) => {
+    for (const activity of project.activities) for (const allocation of activity.allocations) {
+      if (allocation.category) totals[allocation.category] = (totals[allocation.category] || 0) + allocation.budget;
+    }
+    return totals;
+  }, {});
+  const spentByCategory = yearExpenses.reduce<Record<string, number>>((totals, entry) => {
     totals[entry.category] = (totals[entry.category] || 0) + entry.amount;
     return totals;
-  }, {})).sort((a, b) => b[1] - a[1]);
+  }, {});
+  const categoryUsage = [...new Set([...Object.keys(plannedByCategory), ...Object.keys(spentByCategory)])]
+    .map(category => {
+      const planned = plannedByCategory[category] || 0;
+      const spent = spentByCategory[category] || 0;
+      const usedPercent = planned > 0 ? spent / planned * 100 : 0;
+      return { category, planned, spent, remaining: planned - spent, usedPercent };
+    })
+    .sort((a, b) => b.spent - a.spent);
   const visible = yearProjects.filter(
     (project) =>
       (department === "ทั้งหมด" || department === project.department) &&
@@ -706,7 +720,7 @@ export default function ProjectWorkspacePage() {
           </section>
           <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
             <div className="flex flex-wrap items-center justify-between gap-1"><h3 className="font-bold">ใช้จ่ายจากประเภทเงิน</h3><span className="text-xs text-slate-500">รวมจากรายการค่าใช้จ่ายของทุกโครงการ</span></div>
-            {spentByCategory.length ? <div className="mt-3 grid gap-2 lg:grid-cols-2">{spentByCategory.map(([category, total]) => <div key={category} className="min-w-0 rounded-xl bg-slate-50 px-3 py-2.5 dark:bg-slate-800"><div className="flex items-baseline justify-between gap-3 text-sm"><span className="min-w-0 truncate" title={category}>{category}</span><strong className="shrink-0 tabular-nums text-rose-600 dark:text-rose-300">{money(total)} บาท</strong></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"><div className="h-full rounded-full bg-blue-500" style={{ width: `${spentTotal ? total / spentTotal * 100 : 0}%` }}/></div></div>)}</div> : <p className="mt-3 text-sm text-slate-500">ยังไม่มีรายการค่าใช้จ่าย</p>}
+            {categoryUsage.length ? <div className="mt-3 grid gap-3 lg:grid-cols-2">{categoryUsage.map(({ category, planned, spent, remaining, usedPercent }) => <div key={category} className="min-w-0 rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-800"><div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm"><span className="font-semibold" title={category}>{category}</span><span className="tabular-nums text-slate-500">วงเงิน {money(planned)} บาท</span></div><div className="mt-3 flex items-center justify-between gap-2 text-sm tabular-nums"><span className="font-semibold text-rose-600 dark:text-rose-300">ใช้ไป {planned ? usedPercent.toFixed(1) : "—"}% <span className="font-normal">({money(spent)} บาท)</span></span><span className="font-semibold text-emerald-700 dark:text-emerald-300">เหลือ {planned ? Math.max(0, 100 - usedPercent).toFixed(1) : "—"}% <span className="font-normal">({money(remaining)} บาท)</span></span></div><div role="meter" aria-label={`${category} ใช้ไป`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, Math.max(0, usedPercent))} className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-emerald-400 dark:bg-emerald-600"><div className="h-full bg-rose-500 transition-[width]" style={{ width: `${Math.min(100, Math.max(0, usedPercent))}%` }}/></div>{remaining < 0 && <p className="mt-1 text-xs font-semibold text-rose-600">ใช้เกินวงเงิน {money(-remaining)} บาท</p>}</div>)}</div> : <p className="mt-3 text-sm text-slate-500">ยังไม่มีวงเงินหรือรายการค่าใช้จ่าย</p>}
           </section>
           <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 md:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]">
             <select

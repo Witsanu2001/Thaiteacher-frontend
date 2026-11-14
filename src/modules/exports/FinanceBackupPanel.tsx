@@ -16,8 +16,8 @@ type Current = { reports: DailyReport[]; entries: CashbookEntry[]; vouchers: Rec
 type Pending = { data: FinanceBackup; baseline: string; existingReports: number; existingEntries: number; existingVouchers: number; existingOpening: number };
 const readJson = <T,>(value: string | undefined, fallback: T): T => { try { return value ? JSON.parse(value) as T : fallback; } catch { return fallback; } };
 const inRange = (date: string, from: string, to: string) => date >= from && date <= to;
-const download = (data: FinanceBackup, prefix: string) => {
-  const blob = new Blob([buildFinanceBackup(data)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+const download = async (data: FinanceBackup, prefix: string) => {
+  const blob = new Blob([await buildFinanceBackup(data)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -73,7 +73,7 @@ export default function FinanceBackupPanel({ school, reports, user, viewAsUid, d
     try {
       const data = pick(await getCurrent(), from, to);
       if (!data.reports.length && !data.entries.length) { setMessage("ช่วงวันที่นี้ยังไม่มีข้อมูลให้ส่งออก"); return; }
-      download(data, "ThaiTeacher_สำรองการเงิน");
+      await download(data, "ThaiTeacher_สำรองการเงิน");
       setMessage(`ส่งออก ${data.reports.length} วัน และ ${data.entries.length} รายการรับ–จ่ายแล้ว`);
     } catch { setMessage("อ่านข้อมูลล่าสุดหรือสร้างไฟล์ Excel ไม่สำเร็จ กรุณาลองอีกครั้ง"); }
     finally { setBusy(false); }
@@ -103,7 +103,7 @@ export default function FinanceBackupPanel({ school, reports, user, viewAsUid, d
     try {
       const current = await getCurrent();
       if (baselineOf(current, pending.data) !== pending.baseline) { setMessage("ข้อมูลในระบบเปลี่ยนไป กรุณาเลือกไฟล์ใหม่เพื่อตรวจสอบอีกครั้ง"); setPending(null); return; }
-      download(pick(current, pending.data.from, pending.data.to), "ThaiTeacher_ก่อนกู้คืน");
+      await download(pick(current, pending.data.from, pending.data.to), "ThaiTeacher_ก่อนกู้คืน");
       setBackupReady(true);
     } catch { setMessage("สร้างสำเนาข้อมูลปัจจุบันไม่สำเร็จ ยังไม่ได้กู้คืนข้อมูล"); }
     finally { setBusy(false); }

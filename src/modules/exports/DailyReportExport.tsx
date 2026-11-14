@@ -4,8 +4,6 @@ import { recordReportExport } from "../../shared/funtion/reportExportArchive";
 import ReportPageCanvas from "../../shared/components/ReportPageCanvas";
 import {
   blockDateText,
-  defaultTableHeaders,
-  signatureLines,
   hasSavedReportLayout,
   loadReportLayout,
   type ReportLayout,
@@ -19,6 +17,7 @@ import {
 } from "../../shared/funtion/exportFormConfig";
 import { FileDown, FileSpreadsheet, FileText, Loader2, Printer, X } from "lucide-react";
 import { buildReportWord } from "./buildReportWord";
+import { appendReportSheets } from "./reportExcelSheet";
 import type { BalanceRow as Row } from "../../shared/funtion/types";
 import { money } from "../../shared/funtion/money";
 const dateParts = (iso: string) => {
@@ -143,160 +142,7 @@ export default function DailyReportExport({
     if (layout) {
       const ExcelJS = (await import("exceljs")).default;
       const book = new ExcelJS.Workbook();
-      layout.pages.forEach((page, index) => {
-        const sheet = book.addWorksheet(`หน้า ${index + 1}`, {
-          pageSetup: {
-            paperSize: 9,
-            orientation: "portrait",
-            fitToPage: true,
-            fitToWidth: 1,
-            fitToHeight: 1,
-          },
-        });
-        sheet.columns = [
-          { width: 43 },
-          { width: 13 },
-          { width: 17 },
-          { width: 18 },
-          { width: 13 },
-          { width: 20 },
-        ];
-        page.rows.forEach((layoutRow) => {
-          if (layoutRow.blocks.every((block) => !block)) {
-            sheet.addRow([]).height = 18;
-            return;
-          }
-          const contentRow = layoutRow.blocks.some((block) => block?.type === "table") ? null : sheet.addRow([]);
-          layoutRow.blocks.forEach((block, slot) => {
-            if (!block) return;
-            const start =
-              layoutRow.columns === 1
-                ? 1
-                : layoutRow.columns === 2
-                  ? slot * 3 + 1
-                  : slot * 2 + 1;
-            const end =
-              layoutRow.columns === 1
-                ? 6
-                : layoutRow.columns === 2
-                  ? start + 2
-                  : start + 1;
-            if (block.type === "table") {
-              const head = sheet.addRow(
-                defaultTableHeaders.map(
-                  (label, i) => block.tableHeaders?.[i] ?? label,
-                ),
-              );
-              head.height = Math.max(
-                27,
-                ...defaultTableHeaders.map(
-                  (label, i) =>
-                    (block.tableHeaders?.[i] ?? label).split("\n").length *
-                    (block.tableHeaderFontSize || 10) *
-                    1.7,
-                ),
-              );
-              head.eachCell({ includeEmpty: true }, (cell) => {
-                cell.font = {
-                  name: "TH Sarabun PSK",
-                  size: block.tableHeaderFontSize || 10,
-                  bold: block.tableHeaderBold !== false,
-                };
-                cell.alignment = {
-                  horizontal: block.tableHeaderAlign || "center",
-                  vertical: "middle",
-                  wrapText: true,
-                };
-                cell.border = {
-                  top: { style: "thin" },
-                  bottom: { style: "thin" },
-                  left: { style: "thin" },
-                  right: { style: "thin" },
-                };
-                if (block.tableHeaderColor !== "white")
-                  cell.fill = {
-                    type: "pattern",
-                    pattern: "solid",
-                    fgColor: {
-                      argb:
-                        block.tableHeaderColor === "blue"
-                          ? "FFDBEAFE"
-                          : "FFE5E7EB",
-                    },
-                  };
-              });
-              [
-                ...rows,
-                {
-                  name: "รวมทั้งสิ้น",
-                  cash: totals.cash,
-                  bank: totals.bank,
-                  government: totals.government,
-                  note: "",
-                  group: false,
-                },
-              ].forEach((r) => {
-                const values = [
-                  r.name,
-                  r.group ? "" : r.cash,
-                  r.group ? "" : r.bank,
-                  r.group ? "" : r.government,
-                  r.group ? "" : r.cash + r.bank + r.government,
-                  r.note || "",
-                ];
-                const rr = sheet.addRow(values);
-                rr.height = Math.max(22, (block.tableFontSize || 10) * 1.6);
-                rr.font = {
-                  name: "TH Sarabun PSK",
-                  size: block.tableFontSize || 10,
-                  bold: true,
-                };
-                rr.eachCell({ includeEmpty: true }, (c) => {
-                  c.border = {
-                    top: { style: "thin" },
-                    bottom: { style: "thin" },
-                    left: { style: "thin" },
-                    right: { style: "thin" },
-                  };
-                  if (typeof c.value === "number") c.numFmt = "#,##0.00";
-                });
-              });
-              return;
-            }
-            const value =
-              block.type === "date"
-                ? blockDateText(block, date)
-                : block.type === "signature"
-                  ? signatureLines(block).join("\n")
-                  : block.type === "divider"
-                    ? "________________________________________"
-                    : block.text || "";
-            const r = contentRow ?? sheet.addRow([]);
-            r.getCell(start).value = value;
-            if (end > start) sheet.mergeCells(r.number, start, r.number, end);
-            r.font = {
-              name: "TH Sarabun PSK",
-              size: block.fontSize || 12,
-              bold: block.bold !== false,
-              italic: block.italic === true,
-              underline: block.underline === true,
-            };
-            r.getCell(start).alignment = {
-              vertical: "middle",
-              wrapText: true,
-              horizontal: block.align || "left",
-            };
-            r.height =
-              block.type === "signature"
-                ? Math.max(
-                    25,
-                    signatureLines(block).length * (block.fontSize || 12) * 1.4,
-                  )
-                : Math.max(25, (block.fontSize || 12) * 1.5);
-          });
-        });
-        sheet.pageSetup.printArea = `A1:F${Math.max(1, sheet.rowCount)}`;
-      });
+      appendReportSheets(book, layout, date, rows);
       const buffer = await book.xlsx.writeBuffer();
       const blob = new Blob([buffer as BlobPart], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -524,11 +370,18 @@ export default function DailyReportExport({
     const [{ toPng }, { jsPDF }] = await Promise.all([import("html-to-image"), import("jspdf")]);
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
     for (const [index, page] of Array.from(pages).entries()) {
-      const image = await toPng(page, { pixelRatio: 2, backgroundColor: "#ffffff", cacheBust: true, style: { boxShadow: "none" } });
-      const rect = page.getBoundingClientRect();
-      const height = Math.min(297, rect.height / rect.width * 210);
+      if (page.scrollWidth > page.clientWidth + 2 || page.scrollHeight > page.clientHeight + 2)
+        throw new Error("report_page_overflow");
+      const image = await toPng(page, {
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+        cacheBust: true,
+        width: page.offsetWidth,
+        height: page.offsetHeight,
+        style: { boxShadow: "none", width: "210mm", height: "297mm" },
+      });
       if (index) pdf.addPage();
-      pdf.addImage(image, "PNG", 0, 0, 210, height);
+      pdf.addImage(image, "PNG", 0, 0, 210, 297);
     }
     pdf.save(`รายงานเงินคงเหลือ_${date}.pdf`);
     remember("PDF");
@@ -543,7 +396,9 @@ export default function DailyReportExport({
       else await downloadWord();
     } catch (error) {
       console.error(`Export ${format} failed`, error);
-      setExportError(`สร้างไฟล์ ${format} ไม่สำเร็จ กรุณาลองอีกครั้ง`);
+      setExportError(error instanceof Error && error.message === "report_page_overflow"
+        ? "เนื้อหาเกินหน้ากระดาษ A4 กรุณาลดขนาดตัวอักษรหรือเพิ่มหน้ากระดาษก่อนบันทึก PDF"
+        : `สร้างไฟล์ ${format} ไม่สำเร็จ กรุณาลองอีกครั้ง`);
     } finally {
       setExporting(null);
     }
@@ -555,7 +410,7 @@ export default function DailyReportExport({
       aria-modal="true"
       aria-label="ตัวอย่างรายงานก่อนส่งออก"
     >
-      <div ref={reportRef} className="mx-auto max-w-[210mm]">
+      <div ref={reportRef} className="mx-auto max-w-[210mm] print:mx-0 print:w-[210mm] print:max-w-none">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-3 dark:bg-slate-900 print:hidden">
           <div>
             <h2 className="font-semibold">ตัวอย่างรายงานก่อนส่งออก</h2>
@@ -574,7 +429,16 @@ export default function DailyReportExport({
             </button>
             <button
               type="button"
-              onClick={() => { remember("Print"); window.print(); }}
+              onClick={() => {
+                const pages = reportRef.current?.querySelectorAll<HTMLElement>("[data-report-page]");
+                if (Array.from(pages || []).some(page => page.scrollWidth > page.clientWidth + 2 || page.scrollHeight > page.clientHeight + 2)) {
+                  setExportError("เนื้อหาเกินหน้ากระดาษ A4 กรุณาลดขนาดตัวอักษรหรือเพิ่มหน้ากระดาษก่อนพิมพ์");
+                  return;
+                }
+                setExportError("");
+                remember("Print");
+                window.print();
+              }}
               disabled={Boolean(exporting)}
               className="inline-flex items-center gap-2 rounded-lg border border-blue-600 px-3 py-2 text-sm text-blue-700 dark:text-blue-300"
             >

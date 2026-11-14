@@ -36,7 +36,6 @@ import {
   getLegalAcceptance,
   getPaymentRequests,
   getProfile,
-  markOnboarding,
   recordVisit,
   updateProfile,
   type PaymentRequest,
@@ -167,7 +166,6 @@ export default function AuthGate({
   const [acceptTermsChecked, setAcceptTermsChecked] = useState(false);
   const [privacyChecked, setPrivacyChecked] = useState(false);
   const [legalStep, setLegalStep] = useState<1 | 2>(1);
-  const [showDemo, setShowDemo] = useState(false);
   const [form, setForm] = useState({
     displayName: "",
     phone: "",
@@ -206,7 +204,6 @@ export default function AuthGate({
       setLegalStep(1);
       if (!current) {
         visitSessionIds.clear();
-        setShowDemo(false);
         setLoading(false);
         return;
       }
@@ -252,9 +249,6 @@ export default function AuthGate({
           }
         }
         setProfile(toProfile(value));
-        const demoSeenLocally = localStorage.getItem(`thaiteacher-demo-seen:${current.uid}`) === "1";
-        if (demoSeenLocally && !value.demoSeen) void markOnboarding(current, "demo").catch(() => undefined);
-        setShowDemo(value.role !== "supperAdmin" && !value.demoSeen && !demoSeenLocally);
         if (value.role !== "supperAdmin") {
           const sessionId = visitSessionIds.get(current.uid) || crypto.randomUUID();
           visitSessionIds.set(current.uid, sessionId);
@@ -664,18 +658,6 @@ export default function AuthGate({
         {legalAccepted === false && <footer className="border-t border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900 sm:px-7 lg:px-10"><div className="flex w-full items-center justify-between gap-3"><button type="button" onClick={() => legalStep === 2 ? (setLegalStep(1), window.scrollTo(0, 0)) : void signOut(auth)} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold dark:border-slate-700">{legalStep === 2 ? "ย้อนกลับ" : "ออกจากระบบ"}</button><button type="button" onClick={() => legalStep === 1 ? (setLegalStep(2), window.scrollTo(0, 0)) : void confirmLegal()} disabled={legalStep === 1 ? !acceptTermsChecked : !privacyChecked || busy} className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{legalStep === 1 ? "ถัดไป" : busy ? "กำลังบันทึก..." : "ยอมรับและเริ่มใช้งาน"}</button></div></footer>}
       </main>
     );
-
-  if (showDemo && profile.role !== "supperAdmin")
-    return <DemoApp accountKey={user.uid} user={user} completedTours={profile.tourCompleted} onLogin={() => {
-      localStorage.setItem(`thaiteacher-demo-seen:${user.uid}`, "1");
-      setStorageUser(user.uid, profile.dataVersion || 0);
-      configureStorageSync((uid, key, data) =>
-        key === "school-finances-v2" || key.startsWith("school-finances-conflict-backup:")
-          ? Promise.resolve()
-          : writeAppState(user, key, data, uid === user.uid ? undefined : uid),
-      );
-      setShowDemo(false);
-    }} />;
 
   if (!access)
     return (

@@ -10,7 +10,7 @@ export const menuConfig: MenuItem[] = [
   { label: "ผู้ใช้งาน", path: "/admin/users", role: "superAdmin" },
   { label: "บริการลูกค้า", path: "/admin/support", role: "superAdmin" },
   { label: "ประกาศ", path: "/admin/announcements", role: "superAdmin" },
-  { label: "เคลียร์ข้อมูลผู้ใช้", path: "/admin/clear-users", role: "superAdmin" },
+  { label: "ลบบัญชีผู้ใช้", path: "/admin/clear-users", role: "superAdmin" },
   { label: "ผู้ช่วย AI", path: "/admin/gimini-ai", role: "superAdmin" },
   { label: "ภาพรวมงบประมาณ", path: "/finance/school-finance", role: "teacher" },
   {

@@ -1,6 +1,8 @@
 import * as XLSX from "xlsx";
 import type { CashbookEntry, DailyReport } from "../../shared/funtion/types";
 import { fiscalYearOf } from "../../shared/funtion/fiscalYear";
+import { loadReportLayout } from "../../shared/funtion/reportPageLayout";
+import { appendReportSheets } from "./reportExcelSheet";
 
 export type BackupVoucher = { number: string; party: string; purpose: string; note: string };
 export type FinanceBackup = {
@@ -28,7 +30,7 @@ const rows = (book: XLSX.WorkBook, name: string): unknown[][] => {
   return XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", raw: true });
 };
 
-export function buildFinanceBackup(data: FinanceBackup): ArrayBuffer {
+export async function buildFinanceBackup(data: FinanceBackup): Promise<ArrayBuffer> {
   const book = XLSX.utils.book_new();
   const add = (name: string, values: unknown[][]) => XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(values), name);
   add("ข้อมูลสำรอง", [["รูปแบบ", marker], ["โรงเรียน", data.school], ["ตั้งแต่", data.from], ["ถึง", data.to], ["สร้างเมื่อ", data.createdAt], ["หมายเหตุ", "ไฟล์แนบไม่ได้รวมใน Excel ต้องสำรองแยก"]]);
@@ -36,7 +38,23 @@ export function buildFinanceBackup(data: FinanceBackup): ArrayBuffer {
   add("รายรับรายจ่าย", [["รหัสรายการ", "วันที่", "รับหรือจ่าย", "ประเภทเงิน", "ช่องทาง", "เลขที่เอกสาร", "รายการ", "จำนวนเงิน", "รับจากหรือจ่ายให้", "หมายเหตุ"], ...data.entries.map(entry => [entry.id, entry.date, entry.kind, entry.category, entry.account, entry.documentNo, entry.description, entry.amount, entry.party, entry.note])]);
   add("ใบสำคัญ", [["รหัสรายการ", "เลขที่ใบสำคัญ", "ชื่อผู้เกี่ยวข้อง", "รายการ", "หมายเหตุ"], ...Object.entries(data.vouchers).map(([id, voucher]) => [id, voucher.number, voucher.party, voucher.purpose, voucher.note])]);
   add("ยอดยกมา", [["ปีงบประมาณ", "ประเภทเงิน", "จำนวนเงิน"], ...Object.entries(data.opening).map(([key, value]) => { const split = key.indexOf(":"); return [key.slice(0, split), key.slice(split + 1), value]; })]);
-  return XLSX.write(book, { type: "array", bookType: "xlsx", compression: true }) as ArrayBuffer;
+  const ExcelJS = (await import("exceljs")).default;
+  const styled = new ExcelJS.Workbook();
+  const layout = loadReportLayout(data.school);
+  for (const report of [...data.reports].sort((a, b) => a.date.localeCompare(b.date))) {
+    const [year, month, day] = report.date.split("-");
+    appendReportSheets(styled, layout, report.date, report.rows, `${day}-${month}-${year}`);
+  }
+  // Keep the original machine-readable sheets intact: the restore parser reads them by name.
+  for (const name of book.SheetNames) {
+    const sheet = styled.addWorksheet(name);
+    const values = XLSX.utils.sheet_to_json<unknown[]>(book.Sheets[name], { header: 1, defval: "", raw: true });
+    for (const value of values) sheet.addRow(value as (string | number)[]);
+    sheet.getRow(1).font = { name: "TH Sarabun PSK", size: 12, bold: true };
+    sheet.columns.forEach(column => { column.width = 24; });
+  }
+  const result = await styled.xlsx.writeBuffer();
+  return result as ArrayBuffer;
 }
 
 export async function parseFinanceBackup(file: File): Promise<FinanceBackup> {

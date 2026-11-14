@@ -17,7 +17,7 @@ export interface UserProfile {
   plan: UserPlan | "inactive";
   createdAt: string | null;
   paidUntil: string | null;
-  status?: "active" | "clearing" | "cleared";
+  status?: "active" | "clearing" | "cleared" | "deleted";
   dataVersion?: number;
   clearedAt?: string | null;
   demoSeen?: boolean;

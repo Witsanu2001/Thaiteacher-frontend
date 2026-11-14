@@ -9,9 +9,10 @@ function clearErrorMessage(error: unknown, deleting: boolean) {
   if (code === "clear_storage_bucket_not_found") return "ไม่พบ Firebase Storage bucket ของโครงการ กรุณาเปิด Storage ใน Firebase Console และตรวจ FIREBASE_STORAGE_BUCKET";
   if (code === "clear_storage_permission_denied") return "บัญชี service account ของ users-service ไม่มีสิทธิ์ดูหรือลบไฟล์ใน Storage bucket";
   if (code === "clear_storage_unavailable") return "เชื่อมต่อ Firebase Storage ไม่สำเร็จ กรุณาตรวจ bucket หรือสิทธิ์ Storage ของ users-service แล้วลองใหม่";
-  if (code === "forbidden") return "บัญชีนี้ไม่มีสิทธิ์เคลียร์ข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่และตรวจสิทธิ์ supperAdmin";
+  if (code === "school_has_members") return "บัญชีนี้เป็นเจ้าของข้อมูลโรงเรียนที่ยังมีครูคนอื่นใช้อยู่ ต้องย้ายครูเหล่านั้นไปโรงเรียนใหม่ก่อนลบบัญชี";
+  if (code === "forbidden") return "บัญชีนี้ไม่มีสิทธิ์ลบบัญชีผู้ใช้ กรุณาเข้าสู่ระบบใหม่และตรวจสิทธิ์ supperAdmin";
   if (code === "clear_confirmation_mismatch") return "อีเมลยืนยันไม่ตรงกับบัญชีผู้ใช้";
-  return deleting ? "เคลียร์ข้อมูลไม่สำเร็จ กรุณาตรวจ log ของ users-service แล้วลองอีกครั้ง" : "ตรวจสอบข้อมูลก่อนลบไม่ได้ กรุณาตรวจ log ของ users-service และการเชื่อมต่อ Firestore";
+  return deleting ? "ลบบัญชีไม่สำเร็จ กรุณาตรวจ log ของ users-service แล้วลองอีกครั้ง" : "ตรวจสอบข้อมูลก่อนลบไม่ได้ กรุณาตรวจ log ของ users-service และการเชื่อมต่อ Firestore";
 }
 
 export default function UserClearDialog({ user, target, onClose, onCleared }: {
@@ -21,7 +22,7 @@ export default function UserClearDialog({ user, target, onClose, onCleared }: {
   onCleared: (profile: UserProfile) => void;
 }) {
   const [preview, setPreview] = useState<UserClearPreview | null>(null);
-  const [email, setEmail] = useState("");
+  const [confirmation, setConfirmation] = useState("");
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
@@ -37,11 +38,12 @@ export default function UserClearDialog({ user, target, onClose, onCleared }: {
   }, [user, target.uid]);
 
   const clear = async () => {
-    if (!preview || email.trim().toLocaleLowerCase() !== preview.email.toLocaleLowerCase()) return;
+    const expected = preview?.email || preview?.uid;
+    if (!preview || confirmation.trim().toLocaleLowerCase() !== expected?.toLocaleLowerCase()) return;
     setDeleting(true);
     setError("");
     try {
-      const cleared = await clearUserData(user, target.uid, email.trim());
+      const cleared = await clearUserData(user, target.uid, confirmation.trim());
       onCleared(cleared);
     } catch (cause) {
       setError(clearErrorMessage(cause, true));
@@ -54,8 +56,8 @@ export default function UserClearDialog({ user, target, onClose, onCleared }: {
         <span className="grid size-11 place-items-center rounded-xl bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"><AlertTriangle size={22} /></span>
         <button type="button" onClick={onClose} disabled={deleting} aria-label="ปิด" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"><X size={20} /></button>
       </div>
-      <h2 id="clear-user-title" className="mt-4 text-xl font-bold text-slate-900 dark:text-white">เคลียร์ข้อมูลผู้ใช้ทั้งหมด</h2>
-      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{target.displayName || target.email} · {target.email}</p>
+      <h2 id="clear-user-title" className="mt-4 text-xl font-bold text-slate-900 dark:text-white">ลบบัญชีและข้อมูลทั้งหมด</h2>
+      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{target.displayName || target.email || `รหัสบัญชี ${target.uid}`}{target.email && ` · ${target.email}`}</p>
       {!loading && preview && <>
         <div className="mt-5 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800"><b className="block text-lg">{preview.budgetReports}</b>รายงาน</div>
@@ -63,11 +65,11 @@ export default function UserClearDialog({ user, target, onClose, onCleared }: {
           <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800"><b className="block text-lg">{preview.slipFiles}</b>ไฟล์สลิป</div>
           <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800"><b className="block text-lg">{preview.otherDocuments}</b>เอกสารอื่น</div>
         </div>
-        <p className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">ลบข้อมูลการใช้งานใน Firestore และ Storage แล้วล้างข้อมูลส่วนตัวในโปรไฟล์ บัญชี Google/Firebase Auth ยังอยู่ แต่จะเข้าใช้งานระบบไม่ได้ หลักฐานการยอมรับข้อตกลงจะเก็บไว้แยกต่างหาก การลบนี้ย้อนกลับไม่ได้</p>
-        <label className="mt-5 block text-sm font-semibold text-slate-800 dark:text-slate-200">พิมพ์อีเมล {preview.email} เพื่อยืนยัน<input autoComplete="off" value={email} onChange={event => setEmail(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 font-normal text-slate-900 outline-none focus:border-rose-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white" /></label>
+        <p className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">ลบ Firebase Auth, โปรไฟล์, ข้อมูลการเงินของบัญชีนี้, แชท, การแจ้งเตือน, หลักฐานยอมรับข้อตกลง และไฟล์แนบถาวร บัญชี Google ส่วนตัวของผู้ใช้ไม่ถูกลบ หากโรงเรียนยังมีผู้ใช้อื่น ระบบจะไม่ยอมลบบัญชีเจ้าของข้อมูลโรงเรียนจนกว่าจะย้ายสมาชิกก่อน การลบย้อนกลับไม่ได้</p>
+        <label className="mt-5 block text-sm font-semibold text-slate-800 dark:text-slate-200">พิมพ์{preview.email ? `อีเมล ${preview.email}` : `รหัสบัญชี ${preview.uid}`} เพื่อยืนยัน<input autoComplete="off" value={confirmation} onChange={event => setConfirmation(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 font-normal text-slate-900 outline-none focus:border-rose-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white" /></label>
       </>}
       {error && <p role="alert" className="mt-4 text-sm text-rose-600 dark:text-rose-300">{error}</p>}
-      <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={onClose} disabled={deleting} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm dark:border-slate-700">ยกเลิก</button><button type="button" onClick={clear} disabled={!preview || deleting || email.trim().toLocaleLowerCase() !== preview.email.toLocaleLowerCase()} className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40"><Trash2 size={16} /> {deleting ? "กำลังเคลียร์…" : "เคลียร์ข้อมูลทั้งหมด"}</button></div>
+      <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={onClose} disabled={deleting} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm dark:border-slate-700">ยกเลิก</button><button type="button" onClick={clear} disabled={!preview || deleting || confirmation.trim().toLocaleLowerCase() !== (preview.email || preview.uid).toLocaleLowerCase()} className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40"><Trash2 size={16} /> {deleting ? "กำลังลบ…" : "ลบบัญชีถาวร"}</button></div>
     </section>
   </div>;
 }

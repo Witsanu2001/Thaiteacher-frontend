@@ -74,7 +74,7 @@ function AppContent({
     setViewError("");
   }, []);
   const navigate = useCallback((page: string, incomeExpenseCategory?: string) => {
-    if (page === "Dashboard" || page === "ผู้ใช้งาน" || page === "เคลียร์ข้อมูลผู้ใช้" || (page === "โปรไฟล์บัญชี" && isAdmin)) stopViewing();
+    if (page === "Dashboard" || page === "ผู้ใช้งาน" || page === "ลบบัญชีผู้ใช้" || (page === "โปรไฟล์บัญชี" && isAdmin)) stopViewing();
     const role =
       isAdmin &&
       menuConfig.some(

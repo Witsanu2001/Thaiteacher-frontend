@@ -28,7 +28,7 @@ const menuIcons: Record<string, LucideIcon> = {
   ผู้ใช้งาน: UsersRound,
   บริการลูกค้า: MessageCircle,
   ประกาศ: Megaphone,
-  เคลียร์ข้อมูลผู้ใช้: Trash2,
+  ลบบัญชีผู้ใช้: Trash2,
   ภาพรวมงบประมาณ: LayoutDashboard,
   ทะเบียนคุมเงิน: BookOpen,
   "รายรับ–รายจ่าย": ArrowRightLeft,
