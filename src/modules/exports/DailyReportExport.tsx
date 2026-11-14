@@ -1,7 +1,8 @@
 import { scopedStorage } from "../../shared/funtion/scopedStorage";
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { recordReportExport } from "../../shared/funtion/reportExportArchive";
-import ReportPageCanvas from "../../shared/components/ReportPageCanvas";
+import { originalReportLayout, renderReportPages, type ReportPageImage } from "./renderReportPages";
 import {
   blockDateText,
   hasSavedReportLayout,
@@ -11,15 +12,11 @@ import {
 import {
   defaultExportConfig,
   type ExportFormConfig,
-  tableFontClass,
-  tablePaddingClass,
-  tableBorderClass,
 } from "../../shared/funtion/exportFormConfig";
 import { FileDown, FileSpreadsheet, FileText, Loader2, Printer, X } from "lucide-react";
 import { buildReportWord } from "./buildReportWord";
 import { appendReportSheets } from "./reportExcelSheet";
 import type { BalanceRow as Row } from "../../shared/funtion/types";
-import { money } from "../../shared/funtion/money";
 const dateParts = (iso: string) => {
   const [year, month, day] = iso.split("-").map(Number);
   return {
@@ -43,7 +40,7 @@ export default function DailyReportExport({
   onClose: () => void;
   archive?: { layout: ReportLayout | null; config: ExportFormConfig };
 }) {
-  const reportRef = useRef<HTMLDivElement>(null);
+  const [pageImages, setPageImages] = useState<ReportPageImage[]>([]);
   const [exporting, setExporting] = useState<"Excel" | "PDF" | "Word" | null>(null);
   const [exportError, setExportError] = useState("");
   const [config] = useState<ExportFormConfig>(() => {
@@ -79,6 +76,16 @@ export default function DailyReportExport({
         ? loadReportLayout(school)
         : null,
   );
+  useEffect(() => {
+    let active = true;
+    void renderReportPages(layout || originalReportLayout(school, date, config), date, rows)
+      .then(pages => { if (active) setPageImages(pages); })
+      .catch(error => {
+        console.error("Could not render report pages", error);
+        if (active) setExportError("โหลดแบบรายงานหรือฟอนต์ไม่สำเร็จ กรุณาปิดแล้วเปิดตัวอย่างอีกครั้ง");
+      });
+    return () => { active = false; };
+  }, [layout, school, date, config, rows]);
   const remember = (format: "Excel" | "PDF" | "Word" | "Print") => {
     const savedLayout = layout ? structuredClone(layout) : null;
     if (savedLayout)
@@ -364,25 +371,12 @@ export default function DailyReportExport({
     remember("Word");
   };
   const createPdf = async () => {
-    const pages = reportRef.current?.querySelectorAll<HTMLElement>("[data-report-page]");
-    if (!pages?.length) throw new Error("ไม่พบหน้ารายงาน");
-    await document.fonts.ready;
-    const [{ toPng }, { jsPDF }] = await Promise.all([import("html-to-image"), import("jspdf")]);
+    if (!pageImages.length) throw new Error("ไม่พบหน้ารายงาน");
+    const { jsPDF } = await import("jspdf");
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
-    for (const [index, page] of Array.from(pages).entries()) {
-      const content = page.querySelector<HTMLElement>("[data-report-content]");
-      if (content && Number(content.style.transform.match(/scale\(([^)]+)\)/)?.[1] || 1) < 0.82)
-        throw new Error("report_page_overflow");
-      const image = await toPng(page, {
-        pixelRatio: 2,
-        backgroundColor: "#ffffff",
-        cacheBust: true,
-        width: page.offsetWidth,
-        height: page.offsetHeight,
-        style: { boxShadow: "none", width: "210mm", height: "297mm" },
-      });
+    for (const [index, page] of pageImages.entries()) {
       if (index) pdf.addPage();
-      pdf.addImage(image, "PNG", 0, 0, 210, 297);
+      pdf.addImage(page.image, "PNG", 0, 0, 210, 297);
     }
     return pdf;
   };
@@ -391,25 +385,11 @@ export default function DailyReportExport({
     pdf.save(`รายงานเงินคงเหลือ_${date}.pdf`);
     remember("PDF");
   };
-  const printPdf = async () => {
-    // Open the tab during the click event so Safari permits the PDF viewer.
-    const viewer = window.open("", "_blank");
-    if (!viewer) {
-      setExportError("กรุณาอนุญาตหน้าต่างใหม่เพื่อเปิด PDF สำหรับพิมพ์");
-      return;
-    }
-    try {
-      const pdf = await createPdf();
-      const url = URL.createObjectURL(pdf.output("blob"));
-      viewer.location.replace(url);
-      remember("Print");
-      window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60_000);
-    } catch (error) {
-      viewer.close();
-      setExportError(error instanceof Error && error.message === "report_page_overflow"
-        ? "เนื้อหาแน่นเกินหนึ่งหน้า กรุณาลดขนาดตัวอักษรหรือเพิ่มหน้ากระดาษก่อนพิมพ์"
-        : "สร้าง PDF สำหรับพิมพ์ไม่สำเร็จ กรุณาลองอีกครั้ง");
-    }
+  const printReport = () => {
+    if (!pageImages.length) return;
+    setExportError("");
+    remember("Print");
+    window.print();
   };
   const runExport = async (format: "Excel" | "PDF" | "Word") => {
     if (exporting) return;
@@ -428,14 +408,15 @@ export default function DailyReportExport({
       setExporting(null);
     }
   };
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/70 p-3 sm:p-6 print:static print:overflow-visible print:bg-white print:p-0"
+      data-report-print-root
+      className={`${document.querySelector(".dark") ? "dark" : ""} fixed inset-0 z-[70] overflow-y-auto bg-slate-950/70 p-3 sm:p-6 print:static print:overflow-visible print:bg-white print:p-0`}
       role="dialog"
       aria-modal="true"
       aria-label="ตัวอย่างรายงานก่อนส่งออก"
     >
-      <div ref={reportRef} className="mx-auto max-w-[210mm] print:mx-0 print:w-[210mm] print:max-w-none">
+      <div className="mx-auto max-w-[210mm] print:mx-0 print:w-[210mm] print:max-w-none">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-3 dark:bg-slate-900 print:hidden">
           <div>
             <h2 className="font-semibold">ตัวอย่างรายงานก่อนส่งออก</h2>
@@ -454,16 +435,16 @@ export default function DailyReportExport({
             </button>
             <button
               type="button"
-              onClick={() => void printPdf()}
-              disabled={Boolean(exporting)}
+              onClick={printReport}
+              disabled={Boolean(exporting) || !pageImages.length}
               className="inline-flex items-center gap-2 rounded-lg border border-blue-600 px-3 py-2 text-sm text-blue-700 dark:text-blue-300"
             >
-              <Printer size={17} /> เปิด PDF เพื่อพิมพ์
+              <Printer size={17} /> พิมพ์
             </button>
             <button
               type="button"
               onClick={() => void runExport("PDF")}
-              disabled={Boolean(exporting)}
+              disabled={Boolean(exporting) || !pageImages.length}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-sm text-white"
             >
               {exporting === "PDF" ? <Loader2 size={17} className="animate-spin" /> : <FileDown size={17} />} บันทึก PDF
@@ -487,165 +468,13 @@ export default function DailyReportExport({
           </div>
         </div>
         {exportError && <p role="alert" className="mb-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 print:hidden">{exportError}</p>}
-        {layout ? (
-          <ReportPageCanvas layout={layout} date={date} rows={rows} />
-        ) : (
-          <article data-report-page className="min-h-[297mm] overflow-x-auto rounded-xl bg-white p-5 font-sarabun text-xl text-black shadow-2xl sm:p-10 print:mx-auto print:min-h-0 print:w-[180mm] print:overflow-visible print:rounded-none print:px-0 print:pt-[12mm] print:pb-[8mm] print:text-[13pt] print:shadow-none">
-            <div className="min-w-[720px] print:min-w-0">
-              <header className="mb-4 space-y-1 text-center leading-7 print:mb-3 print:space-y-0 print:text-[14pt] print:leading-[1.15]">
-                <p className="font-semibold">{schoolTitle}</p>
-                <h2 className="font-semibold">{config.reportTitle}</h2>
-                <p>
-                  ประจำวันที่ {dateText.day} เดือน {dateText.month} พ.ศ.{" "}
-                  {dateText.year}
-                </p>
-              </header>
-              <table
-                className={`w-full table-fixed border-collapse text-base print:leading-tight ${tableFontClass(config.tableFontSize)}`}
-              >
-                <colgroup>
-                  <col className="w-[36%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[15%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[13%]" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    {[
-                      "ประเภท",
-                      "เงินสด",
-                      "เงินฝากธนาคาร",
-                      "เงินฝากส่วน-ราชการผู้เบิก",
-                      "รวม",
-                      "หมายเหตุ",
-                    ].map((h) => (
-                      <th
-                        key={h}
-                        className={`${tableBorderClass(config.tableBorder)} p-2 text-center font-semibold ${tablePaddingClass(config.tableRowSpacing)} ${config.shadeHeader ? "bg-slate-100" : ""}`}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, i) => (
-                    <tr key={i}>
-                      <td
-                        className={`${tableBorderClass(config.tableBorder)} p-2 ${tablePaddingClass(config.tableRowSpacing)}`}
-                        style={{
-                          paddingLeft: `${8 + (row.level ?? 0) * 14}px`,
-                        }}
-                      >
-                        {row.level ? "- " : ""}
-                        {row.name}
-                      </td>
-                      {[
-                        row.cash,
-                        row.bank,
-                        row.government,
-                        row.cash + row.bank + row.government,
-                      ].map((value, j) => (
-                        <td
-                          key={j}
-                          className={`${tableBorderClass(config.tableBorder)} p-2 text-right tabular-nums ${tablePaddingClass(config.tableRowSpacing)}`}
-                        >
-                          {row.group ? "" : money(value)}
-                        </td>
-                      ))}
-                      <td
-                        className={`${tableBorderClass(config.tableBorder)} p-2 ${tablePaddingClass(config.tableRowSpacing)}`}
-                      >
-                        {row.note ?? ""}
-                      </td>
-                    </tr>
-                  ))}
-                  <tr className="font-semibold">
-                    <td
-                      className={`${tableBorderClass(config.tableBorder)} p-2 ${tablePaddingClass(config.tableRowSpacing)}`}
-                    >
-                      รวมทั้งสิ้น
-                    </td>
-                    {[
-                      totals.cash,
-                      totals.bank,
-                      totals.government,
-                      totals.cash + totals.bank + totals.government,
-                    ].map((value, i) => (
-                      <td
-                        key={i}
-                        className={`${tableBorderClass(config.tableBorder)} p-2 text-right tabular-nums ${tablePaddingClass(config.tableRowSpacing)}`}
-                      >
-                        {money(value)}
-                      </td>
-                    ))}
-                    <td
-                      className={`${tableBorderClass(config.tableBorder)} p-2 ${tablePaddingClass(config.tableRowSpacing)}`}
-                    />
-                  </tr>
-                </tbody>
-              </table>
-              <div className="mt-8 space-y-1 text-lg print:mt-4 print:space-y-0 print:text-[11pt] print:leading-tight">
-                <div className="ml-auto w-1/2 min-w-64 text-center">
-                  <p>
-                    ลงชื่อ.............................................ผู้จัดทำรายงาน
-                  </p>
-                  <p>{signer(config.makerName)}</p>
-                  <p>
-                    ตำแหน่ง{" "}
-                    {config.makerPosition ||
-                      "............................................."}
-                  </p>
-                </div>
-                <p className="pt-6 print:pt-3">{config.committeeStatement}</p>
-                <div className="grid grid-cols-3 gap-4 pt-8 text-center print:pt-4">
-                  {config.committeeNames.map((name, index) => (
-                    <p key={index}>
-                      ลงชื่อ.............................................
-                      <br />
-                      {name ? `(${name}) ` : ""}
-                      {config.committeePositions[index]}
-                    </p>
-                  ))}
-                </div>
-                <div className="ml-auto w-1/2 min-w-64 pt-8 text-center print:pt-4">
-                  <p>
-                    ลงชื่อ.............................................หัวหน้าหน่วยงาน
-                  </p>
-                  <p>{signer(config.headName)}</p>
-                  <p>
-                    ตำแหน่ง{" "}
-                    {config.headPosition ||
-                      "............................................."}
-                  </p>
-                </div>
-                <div
-                  className={`grid grid-cols-2 items-baseline gap-4 pt-8 print:pt-3 ${config.showDivider ? "border-t border-black" : ""}`}
-                >
-                  <p>{config.receiptStatement}</p>
-                  <p className="pl-5 text-left print:pl-5">{receiptDate}</p>
-                </div>
-                <div className="ml-auto mr-8 w-1/2 min-w-64 pt-4 text-center print:pt-2">
-                  <p>
-                    ลงชื่อ{" "}
-                    {config.receiptName ||
-                      "............................................."}{" "}
-                    {config.receiptPosition}
-                  </p>
-                  <p className="pt-4 print:pt-2">
-                    ลงชื่อ{" "}
-                    {config.subheadName ||
-                      "............................................."}{" "}
-                    {config.subheadPosition}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </article>
-        )}
+        {!pageImages.length && !exportError && <div role="status" className="grid min-h-72 place-items-center rounded-xl bg-white text-blue-600"><Loader2 className="size-8 animate-spin" aria-label="กำลังเตรียมรายงาน" /></div>}
+        <div className="space-y-5 print:space-y-0">
+          {pageImages.map((page, index) => (
+            <img key={index} data-report-print-page src={page.image} alt={`รายงานเงินคงเหลือ หน้าที่ ${index + 1}`} className="mx-auto block h-auto w-full bg-white shadow-xl print:m-0 print:h-[296mm] print:w-[209mm] print:max-w-none print:break-after-page print:shadow-none last:print:break-after-auto" />
+          ))}
+        </div>
       </div>
-    </div>
+    </div>, document.body
   );
 }

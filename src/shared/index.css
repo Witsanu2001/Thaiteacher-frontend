@@ -8,3 +8,9 @@ select:not([multiple]){appearance:none;padding-inline-end:2.75rem;background-ima
 @font-face{font-family:"TH Sarabun PSK";src:url("/fonts/THSarabun%20Bold.ttf") format("truetype");font-weight:700;font-style:normal;font-display:swap}
 @theme{--font-sarabun:"TH Sarabun PSK",sans-serif}
 @page{size:A4 portrait;margin:0}
+@media print {
+  html:has([data-report-print-root]), body:has([data-report-print-root]) { min-height:0!important; height:auto!important; margin:0!important; padding:0!important; background:#fff!important; }
+  body:has([data-report-print-root]) > :not([data-report-print-root]) { display:none!important; }
+  [data-report-print-root] { position:static!important; width:210mm!important; height:auto!important; overflow:visible!important; margin:0!important; padding:0!important; background:#fff!important; }
+  [data-report-print-page] { width:209mm!important; height:295.58mm!important; max-width:none!important; margin:0!important; box-shadow:none!important; break-inside:avoid; page-break-inside:avoid; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+}
