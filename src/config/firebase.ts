@@ -7,9 +7,9 @@ import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCxxxggh4zcIrH5UUKObGCAom8E5b31gfQ",
-  // The auth helper must share the Hosting origin for redirect sign-in on Safari.
-  authDomain: typeof window !== "undefined" && window.location.hostname === "thaiteacher-app.web.app" &&
-    (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1))
+  // Keep the auth helper on the Hosting origin for Safari redirect sign-in,
+  // regardless of how an iPad reports its user agent.
+  authDomain: typeof window !== "undefined" && window.location.hostname === "thaiteacher-app.web.app"
     ? "thaiteacher-app.web.app"
     : "thaiteacher-app.firebaseapp.com",
   projectId: "thaiteacher-app",
