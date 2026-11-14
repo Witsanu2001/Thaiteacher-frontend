@@ -8,6 +8,7 @@ import Menu from "./MenuSidebar";
 import AuthGate from "../features/auth/AuthGate";
 import AppRoutes from "../app/routes";
 import SupportChatNotifications from "./components/SupportChatNotifications";
+import GuidedTour from "./components/GuidedTour";
 import { loadAppState } from "../config/services/app-state.service";
 import type { UserProfile } from "../config/services/users.service";
 import {
@@ -148,6 +149,7 @@ function AppContent({
               onView={startViewing}
               viewBusy={viewBusy}
             />
+            <GuidedTour accountKey={viewing?.uid || user.uid} dark={dark} mode={isAdmin && !viewing ? "admin" : "teacher"} autoStart={!isAdmin || !viewing} aiAllowed={isAdmin || accessState === "lifetime"} />
         </div>
       </div>
     </div>

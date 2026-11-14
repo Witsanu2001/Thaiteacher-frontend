@@ -184,7 +184,7 @@ export default function AdminDashboardPage({
             {error}
           </div>
         )}
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div data-tour="admin-dashboard-summary" className="grid gap-4 sm:grid-cols-2">
           <section className="rounded-2xl border border-sky-200 bg-gradient-to-br from-white to-sky-50 p-5 shadow-sm dark:border-sky-900 dark:from-slate-900 dark:to-sky-950/40">
             <span className="grid size-11 place-items-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300">
               <Clock3 size={22} />

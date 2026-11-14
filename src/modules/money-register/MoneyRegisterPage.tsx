@@ -155,7 +155,7 @@ export default function MoneyRegisterPage({
               </p>
             </article>
           </div>
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <section data-tour="register-categories" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4 dark:border-slate-800 sm:p-5">
               <div>
                 <h3 className="font-semibold">ยอดคงเหลือแยกประเภทเงิน</h3>

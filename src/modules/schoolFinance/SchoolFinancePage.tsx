@@ -797,7 +797,7 @@ export default function SchoolFinancePage({
             overview: (
               <>
         {!report ? (
-          <section className="rounded-2xl border border-dashed border-slate-300 p-10 text-center dark:border-slate-700">
+          <section data-tour="empty-report" className="rounded-2xl border border-dashed border-slate-300 p-10 text-center dark:border-slate-700">
             <span className="mx-auto mb-5 grid size-16 place-items-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300">
               <GraduationCap size={32} />
             </span>
@@ -821,6 +821,7 @@ export default function SchoolFinancePage({
         ) : (
           <>
             <section
+              data-tour="overview-cards"
               aria-label="สรุปยอดเงินคงเหลือ"
               className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
             >
@@ -903,7 +904,7 @@ export default function SchoolFinancePage({
                   </p>
                 </div>
                 <div className="grid w-full grid-cols-2 items-end gap-2 sm:flex sm:w-auto sm:flex-wrap">
-                  <label className="col-span-2 grid gap-1 text-sm font-medium sm:col-span-1">
+                  <label data-tour="report-date" className="col-span-2 grid gap-1 text-sm font-medium sm:col-span-1">
                     <ThaiDatePicker
                       value={report.date}
                       availableDates={yearReports.map((r) => r.date)}
@@ -914,6 +915,7 @@ export default function SchoolFinancePage({
                     />
                   </label>
                   <button
+                    data-tour="edit-form"
                     onClick={() => begin("template")}
                     className="inline-flex h-12 min-w-40 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-medium motion-safe:transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900"
                   >
@@ -921,12 +923,14 @@ export default function SchoolFinancePage({
                     แก้ไขฟอร์ม
                   </button>
                   <button
+                    data-tour="add-day"
                     onClick={openCarryForward}
                     className="h-12 min-w-40 rounded-xl border border-blue-600 px-4 text-sm font-medium text-blue-700 motion-safe:transition-all hover:-translate-y-0.5 hover:bg-blue-50 hover:shadow-sm dark:text-blue-300 dark:hover:bg-blue-950"
                   >
                     + เพิ่มวันใหม่
                   </button>
                   <button
+                    data-tour="report-preview"
                     type="button"
                     onClick={() => setPreviewOpen(true)}
                     className="inline-flex h-12 min-w-40 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-medium text-white shadow-sm motion-safe:transition-all hover:-translate-y-0.5 hover:bg-blue-800"
@@ -1015,6 +1019,7 @@ export default function SchoolFinancePage({
                                             null
                                           ) : (
                                             <button
+                                              data-tour="balance-cell"
                                               type="button"
                                               onClick={() => openCell(i, field)}
                                               aria-label={`แก้ไข ${field} ${row.name}`}

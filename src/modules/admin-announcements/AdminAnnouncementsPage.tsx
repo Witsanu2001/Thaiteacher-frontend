@@ -143,7 +143,7 @@ export default function AdminAnnouncementsPage({
           </div>
 
           <div className="grid gap-5 xl:grid-cols-2">
-            <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+            <section data-tour="admin-announcement-form" className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
               <div className="flex items-center gap-2">
                 <Megaphone
                   size={18}

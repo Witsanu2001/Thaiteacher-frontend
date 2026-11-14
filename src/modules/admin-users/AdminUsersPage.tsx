@@ -203,7 +203,7 @@ export default function AdminUsersPage({
         onToggleDark={onToggleDark}
       />
       <main className="mx-auto max-w-7xl space-y-5 p-4 sm:p-8">
-        <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+        <section data-tour="admin-user-list" className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center gap-3">
             <span className="grid size-11 place-items-center rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-950">
               <Users size={21} />

@@ -413,6 +413,7 @@ export default function ChatGiminiAIPage({
           }} />
           <button type="button" aria-label="แนบไฟล์" title="แนบ PDF รูปภาพ หรือ Excel" disabled={!aiEnabled || isSending} onClick={() => fileRef.current?.click()} className="mb-1 grid size-10 shrink-0 place-items-center rounded-xl text-slate-500 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-40 dark:hover:bg-slate-700"><Paperclip size={19} /></button>
           <textarea
+            data-tour="ai-compose"
             ref={inputRef}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}

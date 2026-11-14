@@ -40,7 +40,7 @@ export default function AdminClearPage({ user, onMenu, dark, onToggleDark }: {
   return <div className="min-h-screen bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100">
     <AdminHeader title="เคลียร์ข้อมูลผู้ใช้" onMenu={onMenu} dark={dark} onToggleDark={onToggleDark} />
     <main className="mx-auto max-w-6xl space-y-5 p-4 sm:p-8">
-      <section className="rounded-2xl border border-rose-200 bg-white p-5 dark:border-rose-900 dark:bg-slate-900">
+      <section data-tour="admin-clear-warning" className="rounded-2xl border border-rose-200 bg-white p-5 dark:border-rose-900 dark:bg-slate-900">
         <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950"><Trash2 size={21} /></span><div><h2 className="font-semibold">เลือกบัญชีที่ต้องการเคลียร์</h2><p className="text-sm text-slate-500">ตรวจจำนวนรายงาน รายการชำระ และไฟล์สลิปก่อนยืนยันลบ</p></div></div>
         <label className="mt-5 flex items-center gap-2 rounded-xl border border-slate-200 px-3 dark:border-slate-700"><Search size={18} className="text-slate-400" /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="ค้นหาชื่อ อีเมล หรือโรงเรียน" className="w-full bg-transparent py-3 text-sm outline-none" /></label>
       </section>

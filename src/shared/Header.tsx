@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Menu, Moon, Sun, X } from "lucide-react";
+import { BookOpen, Menu, Moon, Sun, X } from "lucide-react";
 import { firstDayOfFiscalYear } from "../shared/funtion/fiscalYear";
 import NotificationBell from "./components/NotificationBell";
 import AiHeaderButton from "./components/AiHeaderButton";
@@ -23,7 +23,7 @@ type HeaderProps = {
 };
 const PageTitle = ({ active }: { active: string }) => (
   <>
-    <h1 className="flex items-center gap-3 truncate text-2xl font-semibold tracking-tight text-slate-800 dark:text-slate-100 sm:text-3xl">
+    <h1 data-tour="page-title" className="flex items-center gap-3 truncate text-2xl font-semibold tracking-tight text-slate-800 dark:text-slate-100 sm:text-3xl">
       <span aria-hidden="true" className="h-7 w-1.5 shrink-0 rounded-full bg-gradient-to-b from-blue-500 to-cyan-400 shadow-sm shadow-blue-300 dark:shadow-blue-900" />
       {active}
     </h1>
@@ -91,6 +91,7 @@ export default function Header({
           <button
             type="button"
             onClick={onMenu}
+            data-tour="menu-button"
             className="grid size-10 shrink-0 place-items-center rounded-xl text-slate-600 motion-safe:transition-colors hover:bg-blue-50 hover:text-blue-700 dark:text-slate-200 dark:hover:bg-slate-800 lg:hidden"
             aria-label="เปิดเมนู"
           >
@@ -100,6 +101,15 @@ export default function Header({
             <PageTitle active={active} />
           </div>
           <div className="ml-auto flex min-w-0 items-center gap-1 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event("thaiteacher:start-tour"))}
+              aria-label="เริ่มสอนการใช้งาน"
+              title="สอนการใช้งาน"
+              className="grid size-10 shrink-0 place-items-center rounded-xl text-blue-600 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-slate-800"
+            >
+              <BookOpen size={20} />
+            </button>
             <span
               className="max-w-[38vw] truncate rounded-full border border-blue-100 bg-white/80 px-3 py-1.5 text-right text-sm font-semibold text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100 sm:max-w-[280px] sm:text-base lg:max-w-[200px] xl:max-w-[320px]"
               title={schoolName || ""}
@@ -107,13 +117,14 @@ export default function Header({
               {schoolName || "ยังไม่ได้ตั้งค่าโรงเรียน"}
             </span>
             {!demo ? <select
+              data-tour="fiscal-year"
               aria-label="ปีงบประมาณ"
               value={fiscalYear}
               onChange={(e) => chooseYear(e.target.value)}
               className="hidden max-w-44 rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-800 shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200 lg:block"
             >
               {yearOptions}
-            </select> : <button type="button" onClick={onLogin} className="hidden rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200 motion-safe:transition-all hover:-translate-y-0.5 hover:shadow-lg dark:shadow-blue-950 lg:block">ทดลองใช้งาน 9 วัน</button>}
+            </select> : <button type="button" data-tour="fiscal-year" onClick={onLogin} className="hidden rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200 motion-safe:transition-all hover:-translate-y-0.5 hover:shadow-lg dark:shadow-blue-950 lg:block">ทดลองใช้งาน 9 วัน</button>}
             {aiAllowed && !demo && <AiHeaderButton to="/finance/gimini-ai" />}
             <NotificationBell demo={demo} />
             <button
@@ -131,13 +142,14 @@ export default function Header({
             <PageTitle active={active} />
           </div>
           {!demo ? <select
+            data-tour="fiscal-year"
             aria-label="ปีงบประมาณ"
             value={fiscalYear}
             onChange={(e) => chooseYear(e.target.value)}
             className="max-w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-800 shadow-sm dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200"
           >
             {yearOptions}
-          </select> : <button type="button" onClick={onLogin} className="rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 px-3 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200 motion-safe:transition-transform hover:-translate-y-0.5 dark:shadow-blue-950">ทดลองใช้งาน 9 วัน</button>}
+          </select> : <button type="button" data-tour="fiscal-year" onClick={onLogin} className="rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 px-3 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200 motion-safe:transition-transform hover:-translate-y-0.5 dark:shadow-blue-950">ทดลองใช้งาน 9 วัน</button>}
         </div>
       </header>
       {opening && (

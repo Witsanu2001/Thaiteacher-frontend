@@ -130,7 +130,7 @@ export default function ReportFormSettingsPage({
           </button>
         )}
       </div>
-      <div className="overflow-x-auto rounded-2xl bg-slate-100 p-3 dark:bg-slate-950 sm:p-6">
+      <div data-tour="form-canvas" className="overflow-x-auto rounded-2xl bg-slate-100 p-3 dark:bg-slate-950 sm:p-6">
         <div className="min-w-[560px]">
           <ReportPageCanvas
             layout={layout}

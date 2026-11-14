@@ -247,6 +247,7 @@ export default function AppRoutes({
         <Route path="exports" element={<Exports />} />
         <Route path="report-settings" element={<ReportForm />} />
         <Route path="contact" element={<ContactPage user={user} demo={demo} />} />
+        <Route path="guide" element={<Navigate to="/finance/school-finance?tour=1" replace />} />
         <Route path="gimini-ai" element={aiAllowed && user && !demo ? <ChatGiminiAIPage key={`${user.uid}:${viewing?.uid || "self"}`} storageKey={`${user.uid}:${viewing?.uid || "self"}`} getAccessToken={() => user.getIdToken()} viewAsUid={viewing?.uid} /> : <Navigate to="/finance/school-finance" replace />} />
       </Route>
       <Route

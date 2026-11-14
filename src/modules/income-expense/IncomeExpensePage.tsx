@@ -349,6 +349,7 @@ export default function IncomeExpensePage({
           </p>
         </div>
         <select
+          data-tour="cashbook-category"
           aria-label="ประเภทเงิน"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
@@ -358,7 +359,7 @@ export default function IncomeExpensePage({
             <option key={name}>{name}</option>
           ))}
         </select>
-        <div className="flex w-full gap-2 lg:w-auto lg:shrink-0"><button onClick={() => start("income")} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 lg:flex-none"><ArrowDownLeft size={18}/> บันทึกรายรับ</button><button onClick={() => start("expense")} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-blue-300 bg-white px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-blue-800 dark:bg-slate-900 dark:text-blue-300 lg:flex-none"><ArrowUpRight size={18}/> บันทึกรายจ่าย</button></div>
+        <div data-tour="cashbook-actions" className="flex w-full gap-2 lg:w-auto lg:shrink-0"><button onClick={() => start("income")} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 lg:flex-none"><ArrowDownLeft size={18}/> บันทึกรายรับ</button><button onClick={() => start("expense")} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-blue-300 bg-white px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-blue-800 dark:bg-slate-900 dark:text-blue-300 lg:flex-none"><ArrowUpRight size={18}/> บันทึกรายจ่าย</button></div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
@@ -433,7 +434,7 @@ export default function IncomeExpensePage({
           </article>
         ))}
       </div>
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <section data-tour="cashbook-list" className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="grid gap-3 border-b border-slate-200 p-4 dark:border-slate-800 sm:grid-cols-[auto_minmax(0,1fr)] sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto_auto_16rem] xl:items-center">
           <div className="min-w-0 sm:col-span-2 xl:col-span-1">
             <h3 className="font-semibold">รายการในทะเบียน</h3>

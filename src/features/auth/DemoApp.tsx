@@ -6,6 +6,7 @@ import { demoSchoolName, enterDemoScope } from "./demoFinanceStore";
 import { pageFromPath, pathForPage } from "../../shared/menu";
 import { useRouteReveal } from "../../shared/funtion/useRouteReveal";
 import { Sparkles } from "lucide-react";
+import GuidedTour from "../../shared/components/GuidedTour";
 
 export default function DemoApp({ onLogin }: { onLogin: () => void }) {
   useState(() => enterDemoScope());
@@ -51,6 +52,7 @@ export default function DemoApp({ onLogin }: { onLogin: () => void }) {
             demo
             onLogin={onLogin}
           />
+          <GuidedTour accountKey="demo" dark={dark} />
         </div>
       </div>
     </div>

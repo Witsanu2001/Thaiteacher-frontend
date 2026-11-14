@@ -188,6 +188,7 @@ function Menu({
               return (
               <button
                 key={label}
+                data-tour={label === "ภาพรวมงบประมาณ" ? "sidebar-overview" : undefined}
                 onClick={() => nav(label)}
                 aria-current={active === label ? "page" : undefined}
                 aria-label={hasUnreadChat ? `${label} มีข้อความใหม่` : undefined}
@@ -208,6 +209,13 @@ function Menu({
               );
             })}
         </nav>
+        <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("thaiteacher:start-tour"))}
+            className="mt-3 flex min-h-11 w-full shrink-0 items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-3 text-left text-sm font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900"
+          >
+            <BookOpen size={17} /> สอนการใช้งาน
+          </button>
 
         {/* User Profile */}
         <div className="mt-auto flex shrink-0 flex-col gap-3 pt-3">

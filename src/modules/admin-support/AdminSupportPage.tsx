@@ -69,7 +69,7 @@ export default function AdminSupportPage({ user, onMenu, dark, onToggleDark }: {
   return <div className="flex h-dvh min-h-0 flex-col bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100">
     <AdminHeader title="บริการลูกค้า" onMenu={onMenu} dark={dark} onToggleDark={onToggleDark} />
     <main className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-5 lg:flex-row">
-      <aside className="flex max-h-56 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:max-h-none lg:w-80">
+      <aside data-tour="admin-support-list" className="flex max-h-56 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:max-h-none lg:w-80">
         <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 dark:border-slate-800">
           <div className="min-w-0 font-semibold">
             บทสนทนา <span className="text-sm text-slate-500">({conversations.length})</span>

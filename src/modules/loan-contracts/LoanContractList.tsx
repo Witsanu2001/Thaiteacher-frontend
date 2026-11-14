@@ -21,7 +21,7 @@ export default function LoanContractList({ school, contracts, onCreate, onOpen, 
   return <div className="space-y-5 pb-8">
     <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
       <div className="flex items-center gap-3"><span className="grid size-12 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"><FileCheck2 size={24}/></span><div><h2 className="text-xl font-semibold sm:text-2xl">สัญญาการยืมเงิน</h2><p className="mt-1 text-sm text-slate-500">{school} · {contracts.length} สัญญา</p></div></div>
-      <button type="button" onClick={onCreate} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 font-semibold text-white hover:bg-blue-800"><Plus size={18}/> เพิ่มสัญญายืมเงิน</button>
+      <button type="button" data-tour="loan-create" onClick={onCreate} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 font-semibold text-white hover:bg-blue-800"><Plus size={18}/> เพิ่มสัญญายืมเงิน</button>
     </header>
     {message && <p role="status" className="rounded-xl bg-blue-50 p-3 text-sm text-blue-800 dark:bg-blue-950 dark:text-blue-200">{message}</p>}
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">

@@ -657,10 +657,10 @@ export default function ProjectWorkspacePage() {
             <div className="flex flex-wrap gap-2">
               <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(event) => void readFile(event.target.files?.[0])}/>
               <button type="button" onClick={() => fileRef.current?.click()} className={`${button} border border-blue-200 text-blue-700 dark:border-blue-900 dark:text-blue-300`}><FileSpreadsheet size={17}/>นำเข้า Excel</button>
-              <button type="button" onClick={() => openEditor()} className={`${button} bg-blue-600 text-white`}><Plus size={17}/>เพิ่มโครงการ</button>
+              <button type="button" data-tour="project-create" onClick={() => openEditor()} className={`${button} bg-blue-600 text-white`}><Plus size={17}/>เพิ่มโครงการ</button>
             </div>
           </div>
-          <section aria-label="สรุปงบโครงการ" className="grid gap-3 sm:grid-cols-3">
+          <section data-tour="project-summary" aria-label="สรุปงบโครงการ" className="grid gap-3 sm:grid-cols-3">
             {[["วงเงินตามแผน", plannedTotal, "border-blue-500 dark:border-t-blue-500", "text-blue-600 dark:text-blue-300"], ["ใช้จ่ายแล้ว", spentTotal, "border-rose-400 dark:border-t-rose-400", "text-rose-600 dark:text-rose-300"], ["คงเหลือตามแผน", plannedTotal - spentTotal, "border-emerald-400 dark:border-t-emerald-400", "text-emerald-700 dark:text-emerald-300"]].map(([label, value, border, color]) => <div key={label} className={`min-w-0 rounded-2xl border border-slate-200 border-t-4 ${border} bg-white p-4 dark:border-slate-800 dark:bg-slate-900`}><p className="text-sm text-slate-500">{label}</p><p className={`mt-2 text-xl font-bold tabular-nums sm:text-2xl ${color}`}>{money(Number(value))} <span className="text-sm font-medium">บาท</span></p></div>)}
           </section>
           <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">

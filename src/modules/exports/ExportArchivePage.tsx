@@ -70,7 +70,7 @@ export default function ExportArchivePage({
   return (
     <div className="space-y-5">
       <FinanceBackupPanel school={school} reports={reports} user={user} viewAsUid={viewAsUid} demo={demo} />
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div data-tour="export-current" className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold">เอกสารที่เคยส่งออก</h2>
           <p className="mt-1 text-sm text-slate-500">
@@ -86,7 +86,7 @@ export default function ExportArchivePage({
           </button>
         )}
       </div>
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <section data-tour="export-history" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center gap-3 border-b border-slate-200 p-5 dark:border-slate-800">
           <span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
             <History size={20} />
