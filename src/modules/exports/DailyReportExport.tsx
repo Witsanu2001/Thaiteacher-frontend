@@ -41,6 +41,8 @@ export default function DailyReportExport({
   archive?: { layout: ReportLayout | null; config: ExportFormConfig };
 }) {
   const [pageImages, setPageImages] = useState<ReportPageImage[]>([]);
+  const [decodedImages, setDecodedImages] = useState<Set<string>>(() => new Set());
+  const printReady = pageImages.length > 0 && pageImages.every(page => decodedImages.has(page.image));
   const [exporting, setExporting] = useState<"Excel" | "PDF" | "Word" | null>(null);
   const [exportError, setExportError] = useState("");
   const [config] = useState<ExportFormConfig>(() => {
@@ -386,10 +388,11 @@ export default function DailyReportExport({
     remember("PDF");
   };
   const printReport = () => {
-    if (!pageImages.length) return;
-    setExportError("");
-    remember("Print");
+    if (!printReady) return;
+    // Keep print() directly in the tap handler. Safari may reject it after
+    // asynchronous work, and export history updates must not delay this call.
     window.print();
+    remember("Print");
   };
   const runExport = async (format: "Excel" | "PDF" | "Word") => {
     if (exporting) return;
@@ -436,10 +439,10 @@ export default function DailyReportExport({
             <button
               type="button"
               onClick={printReport}
-              disabled={Boolean(exporting) || !pageImages.length}
+              disabled={Boolean(exporting) || !printReady}
               className="inline-flex items-center gap-2 rounded-lg border border-blue-600 px-3 py-2 text-sm text-blue-700 dark:text-blue-300"
             >
-              <Printer size={17} /> พิมพ์
+              {!printReady ? <Loader2 size={17} className="animate-spin" /> : <Printer size={17} />} {printReady ? "พิมพ์" : "กำลังเตรียมพิมพ์…"}
             </button>
             <button
               type="button"
@@ -471,7 +474,14 @@ export default function DailyReportExport({
         {!pageImages.length && !exportError && <div role="status" className="grid min-h-72 place-items-center rounded-xl bg-white text-blue-600"><Loader2 className="size-8 animate-spin" aria-label="กำลังเตรียมรายงาน" /></div>}
         <div data-report-print-pages className="space-y-5 print:space-y-0">
           {pageImages.map((page, index) => (
-            <img key={index} data-report-print-page src={page.image} alt={`รายงานเงินคงเหลือ หน้าที่ ${index + 1}`} className="mx-auto block h-auto w-full bg-white shadow-xl print:shadow-none" />
+            <img key={index} data-report-print-page src={page.image} alt={`รายงานเงินคงเหลือ หน้าที่ ${index + 1}`} onLoad={event => {
+              const image = event.currentTarget;
+              void image.decode().then(() => {
+                requestAnimationFrame(() => {
+                  if (image.isConnected) setDecodedImages(previous => new Set(previous).add(page.image));
+                });
+              }).catch(() => setExportError("เตรียมภาพรายงานสำหรับพิมพ์ไม่สำเร็จ กรุณาปิดแล้วเปิดตัวอย่างอีกครั้ง"));
+            }} onError={() => setExportError("โหลดภาพรายงานไม่สำเร็จ กรุณาปิดแล้วเปิดตัวอย่างอีกครั้ง")} className="mx-auto block h-auto w-full bg-white shadow-xl print:shadow-none" />
           ))}
         </div>
       </div>
