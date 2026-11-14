@@ -20,6 +20,8 @@ export interface UserProfile {
   status?: "active" | "clearing" | "cleared";
   dataVersion?: number;
   clearedAt?: string | null;
+  demoSeen?: boolean;
+  tourCompleted?: Record<string, boolean>;
 }
 
 export interface PaymentRequest {
@@ -56,6 +58,8 @@ export const getProfile = (user: User): Promise<UserProfile> => {
 };
 export const updateProfile = (user: User, profile: Pick<UserProfile, "displayName" | "phone" | "position" | "schoolName">) =>
   request<UserProfile>(user, "PATCH", "", profile);
+export const markOnboarding = (user: User, kind: "demo" | "tour", page?: string) =>
+  request<{ saved: boolean }>(user, "POST", "/onboarding", { kind, page });
 export type LegalAcceptance = { uid: string; version: string; acceptedAt: string; termsText: string; privacyText: string; accountEmail: string };
 export const getLegalAcceptance = (user: User) => request<{ accepted: boolean; version: string; acceptance: LegalAcceptance | null }>(user, "GET", "/legal/acceptance");
 export const acceptLegal = (user: User, version: string) => request<LegalAcceptance>(user, "POST", "/legal/acceptance", { version, acceptTerms: true, acknowledgePrivacy: true });

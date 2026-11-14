@@ -22,7 +22,7 @@ import {
 } from "./menu";
 import { useRouteReveal } from "./funtion/useRouteReveal";
 
-type AppProfile = Pick<UserProfile, "displayName" | "email" | "phone" | "position" | "schoolName" | "schoolId" | "dataVersion" | "role">;
+type AppProfile = Pick<UserProfile, "displayName" | "email" | "phone" | "position" | "schoolName" | "schoolId" | "dataVersion" | "role" | "tourCompleted">;
 type AccessState = "trial" | "paid" | "lifetime" | "expired";
 
 function AppContent({
@@ -153,7 +153,7 @@ function AppContent({
               onView={startViewing}
               viewBusy={viewBusy}
             />
-            {!isAdmin && <GuidedTour accountKey={user.uid} dark={dark} />}
+            {!isAdmin && <GuidedTour accountKey={user.uid} dark={dark} user={user} completedTours={profile.tourCompleted} />}
         </div>
       </div>
     </div>

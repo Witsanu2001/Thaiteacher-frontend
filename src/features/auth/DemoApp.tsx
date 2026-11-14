@@ -7,10 +7,33 @@ import { pageFromPath, pathForPage } from "../../shared/menu";
 import { useRouteReveal } from "../../shared/funtion/useRouteReveal";
 import { Sparkles } from "lucide-react";
 import GuidedTour from "../../shared/components/GuidedTour";
+import type { User } from "firebase/auth";
+import {
+  markOnboarding,
+  type UserProfile,
+} from "../../config/services/users.service";
 
-export default function DemoApp({ onLogin, accountKey }: { onLogin: () => void; accountKey: string }) {
+export default function DemoApp({
+  onLogin,
+  accountKey,
+  user,
+  completedTours,
+  loginError,
+}: {
+  onLogin: () => void;
+  accountKey?: string;
+  user?: User;
+  completedTours?: UserProfile["tourCompleted"];
+  loginError?: string;
+}) {
   useState(() => enterDemoScope());
-  useEffect(() => { localStorage.setItem(`thaiteacher-demo-seen:${accountKey}`, "1"); }, [accountKey]);
+  useEffect(() => {
+    if (!user || !accountKey) return;
+    localStorage.setItem(`thaiteacher-demo-seen:${accountKey}`, "1");
+    void markOnboarding(user, "demo").catch((error) =>
+      console.error("Could not save demo progress", error),
+    );
+  }, [accountKey, user]);
   const location = useLocation();
   const navigate = useNavigate();
   const active = pageFromPath(location.pathname);
@@ -41,9 +64,27 @@ export default function DemoApp({ onLogin, accountKey }: { onLogin: () => void; 
           onSignOut={onLogin}
           isSupperAdmin={false}
           isDemo
+          showTour={Boolean(user)}
         />
         <div ref={contentRef} className="lg:pl-64">
-          <div className="flex min-h-14 items-center gap-2 border-b border-blue-200 bg-gradient-to-r from-blue-50 via-sky-50 to-cyan-50 px-4 py-2 text-sm text-blue-900 dark:border-blue-900 dark:from-blue-950 dark:via-slate-900 dark:to-slate-900 dark:text-blue-100 sm:px-6"><Sparkles size={16} className="shrink-0 text-blue-600 motion-safe:animate-pulse dark:text-sky-300" /><span><strong>โหมดตัวอย่าง</strong> · ลองแก้ไขได้ ข้อมูลเก็บเฉพาะในเครื่องนี้</span></div>
+          {loginError && !user && (
+            <div
+              role="alert"
+              className="border-b border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-200"
+            >
+              {loginError}
+            </div>
+          )}
+          {/* <div className="flex min-h-14 items-center gap-2 border-b border-blue-200 bg-gradient-to-r from-blue-50 via-sky-50 to-cyan-50 px-4 py-2 text-sm text-blue-900 dark:border-blue-900 dark:from-blue-950 dark:via-slate-900 dark:to-slate-900 dark:text-blue-100 sm:px-6">
+            <Sparkles
+              size={16}
+              className="shrink-0 text-blue-600 motion-safe:animate-pulse dark:text-sky-300"
+            />
+            <span>
+              <strong>โหมดตัวอย่าง</strong> · ลองแก้ไขได้
+              ข้อมูลเก็บเฉพาะในเครื่องนี้
+            </span>
+          </div> */}
           <AppRoutes
             onMenu={() => setMobileOpen(true)}
             dark={dark}
@@ -53,7 +94,14 @@ export default function DemoApp({ onLogin, accountKey }: { onLogin: () => void; 
             demo
             onLogin={onLogin}
           />
-          <GuidedTour accountKey={accountKey} dark={dark} />
+          {user && accountKey && (
+            <GuidedTour
+              accountKey={accountKey}
+              dark={dark}
+              user={user}
+              completedTours={completedTours}
+            />
+          )}
         </div>
       </div>
     </div>

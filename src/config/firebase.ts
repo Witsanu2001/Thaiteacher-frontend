@@ -7,7 +7,11 @@ import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCxxxggh4zcIrH5UUKObGCAom8E5b31gfQ",
-  authDomain: "thaiteacher-app.firebaseapp.com",
+  // The auth helper must share the Hosting origin for redirect sign-in on Safari.
+  authDomain: typeof window !== "undefined" && window.location.hostname === "thaiteacher-app.web.app" &&
+    (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1))
+    ? "thaiteacher-app.web.app"
+    : "thaiteacher-app.firebaseapp.com",
   projectId: "thaiteacher-app",
   storageBucket: "thaiteacher-app.firebasestorage.app",
   messagingSenderId: "582374337837",

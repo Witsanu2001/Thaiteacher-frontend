@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { ArrowLeft, ArrowRight, BookOpen, X } from "lucide-react";
 import { pageTours } from "./tourContent";
+import type { User } from "firebase/auth";
+import { markOnboarding } from "../../config/services/users.service";
 
 type Box = { top: number; left: number; width: number; height: number };
 
@@ -15,7 +17,7 @@ function visibleTarget(name?: string): HTMLElement | null {
   }) ?? null;
 }
 
-export default function GuidedTour({ accountKey, dark = false, autoStart = true, mode = "teacher" }: { accountKey: string; dark?: boolean; autoStart?: boolean; aiAllowed?: boolean; mode?: "teacher" }) {
+export default function GuidedTour({ accountKey, dark = false, autoStart = true, mode = "teacher", user, completedTours }: { accountKey: string; dark?: boolean; autoStart?: boolean; aiAllowed?: boolean; mode?: "teacher"; user?: User; completedTours?: Record<string, boolean> }) {
   const location = useLocation();
   const page = pageTours[location.pathname];
   const storageKey = `thaiteacher-page-tour-v1:${mode}:${accountKey}:${location.pathname}`;
@@ -24,6 +26,15 @@ export default function GuidedTour({ accountKey, dark = false, autoStart = true,
   const [open, setOpen] = useState(false);
   const [box, setBox] = useState<Box | null>(null);
   const nextRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!user || !page || completedTours?.[location.pathname.slice("/finance/".length)]) return;
+    try {
+      if (localStorage.getItem(storageKey)) {
+        void markOnboarding(user, "tour", location.pathname.slice("/finance/".length)).catch(() => undefined);
+      }
+    } catch { /* Local storage may be blocked. */ }
+  }, [user, page, completedTours, location.pathname, storageKey]);
 
   useEffect(() => {
     const start = () => { setIndex(0); setRequested(true); };
@@ -42,12 +53,12 @@ export default function GuidedTour({ accountKey, dark = false, autoStart = true,
     const timer = window.setTimeout(() => {
       if (new URLSearchParams(location.search).get("tour") === "1") setRequested(true);
       else if (autoStart) {
-        try { if (!localStorage.getItem(storageKey)) setRequested(true); }
+        try { if (!completedTours?.[location.pathname.slice("/finance/".length)] && !localStorage.getItem(storageKey)) setRequested(true); }
         catch { setRequested(true); }
       }
     }, 250);
     return () => { window.clearTimeout(reset); window.clearTimeout(timer); };
-  }, [location.pathname, location.search, accountKey, autoStart, mode, storageKey, page]);
+  }, [location.pathname, location.search, accountKey, autoStart, mode, storageKey, page, completedTours]);
 
   useEffect(() => {
     if (!requested || !page || open) return;
@@ -116,6 +127,9 @@ export default function GuidedTour({ accountKey, dark = false, autoStart = true,
 
   const finish = () => {
     try { localStorage.setItem(storageKey, new Date().toISOString()); } catch { /* Can replay from the header. */ }
+    if (user && location.pathname.startsWith("/finance/")) {
+      void markOnboarding(user, "tour", location.pathname.slice("/finance/".length)).catch((error) => console.error("Could not save tour progress", error));
+    }
     setOpen(false);
     setRequested(false);
     setBox(null);

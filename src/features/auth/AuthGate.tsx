@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
   GoogleAuthProvider,
+  getRedirectResult,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
   type User,
 } from "firebase/auth";
@@ -34,6 +36,7 @@ import {
   getLegalAcceptance,
   getPaymentRequests,
   getProfile,
+  markOnboarding,
   recordVisit,
   updateProfile,
   type PaymentRequest,
@@ -180,6 +183,13 @@ export default function AuthGate({
   }, []);
 
   useEffect(() => {
+    void getRedirectResult(auth).catch((authError) => {
+      console.error("Google redirect sign-in failed", authError);
+      setError("เข้าสู่ระบบด้วย Google ไม่สำเร็จ กรุณาลองอีกครั้ง หากยังไม่สำเร็จให้เปิดเว็บใน Safari โดยตรง");
+    });
+  }, []);
+
+  useEffect(() => {
     let authRequestId = 0;
     const unsubscribeAuth = onAuthStateChanged(auth, async (current) => {
       const requestId = ++authRequestId;
@@ -242,7 +252,9 @@ export default function AuthGate({
           }
         }
         setProfile(toProfile(value));
-        setShowDemo(value.role !== "supperAdmin" && localStorage.getItem(`thaiteacher-demo-seen:${current.uid}`) !== "1");
+        const demoSeenLocally = localStorage.getItem(`thaiteacher-demo-seen:${current.uid}`) === "1";
+        if (demoSeenLocally && !value.demoSeen) void markOnboarding(current, "demo").catch(() => undefined);
+        setShowDemo(value.role !== "supperAdmin" && !value.demoSeen && !demoSeenLocally);
         if (value.role !== "supperAdmin") {
           const sessionId = visitSessionIds.get(current.uid) || crypto.randomUUID();
           visitSessionIds.set(current.uid, sessionId);
@@ -340,9 +352,16 @@ export default function AuthGate({
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
-      await signInWithPopup(auth, provider);
-    } catch {
-      setError("เข้าสู่ระบบด้วย Google ไม่สำเร็จ กรุณาลองอีกครั้ง");
+      const isIPadOrIPhone = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      if (isIPadOrIPhone && window.location.hostname === "thaiteacher-app.web.app") {
+        await signInWithRedirect(auth, provider);
+      } else {
+        await signInWithPopup(auth, provider);
+      }
+    } catch (authError) {
+      console.error("Google sign-in failed", authError);
+      setError("เข้าสู่ระบบด้วย Google ไม่สำเร็จ กรุณาลองอีกครั้ง หากเปิดผ่าน Messenger ให้เปิดใน Safari โดยตรง");
     } finally {
       setBusy(false);
     }
@@ -413,7 +432,8 @@ export default function AuthGate({
         <span role="status" aria-label="กำลังตรวจสอบบัญชี" className="size-10 motion-safe:animate-spin rounded-full border-[3px] border-blue-200/40 border-t-sky-300"/>
       </main>
     );
-  if (!user || !profile)
+  if (!user) return <DemoApp onLogin={() => void login()} loginError={error} />;
+  if (!profile)
     return (
       <main className="grid min-h-screen place-items-center bg-slate-50 p-4 dark:bg-slate-950">
         <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 text-slate-800 shadow-xl dark:border-slate-800 dark:bg-slate-900 dark:text-white sm:p-9">
@@ -646,7 +666,7 @@ export default function AuthGate({
     );
 
   if (showDemo && profile.role !== "supperAdmin")
-    return <DemoApp accountKey={user.uid} onLogin={() => {
+    return <DemoApp accountKey={user.uid} user={user} completedTours={profile.tourCompleted} onLogin={() => {
       localStorage.setItem(`thaiteacher-demo-seen:${user.uid}`, "1");
       setStorageUser(user.uid, profile.dataVersion || 0);
       configureStorageSync((uid, key, data) =>
