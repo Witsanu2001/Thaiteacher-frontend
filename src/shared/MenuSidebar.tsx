@@ -209,13 +209,13 @@ function Menu({
               );
             })}
         </nav>
-        <button
+        {!isSupperAdmin && <button
             type="button"
             onClick={() => window.dispatchEvent(new Event("thaiteacher:start-tour"))}
             className="mt-3 flex min-h-11 w-full shrink-0 items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-3 text-left text-sm font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900"
           >
             <BookOpen size={17} /> สอนการใช้งาน
-          </button>
+          </button>}
 
         {/* User Profile */}
         <div className="mt-auto flex shrink-0 flex-col gap-3 pt-3">
@@ -266,7 +266,7 @@ function Menu({
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-blue-500/25 transition-colors hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
               >
                 <LogIn size={16} />
-                เข้าสู่ระบบ
+                เข้าสู่ข้อมูลจริง
               </button>
             )}
             {accountMenuMounted && !isDemo && (

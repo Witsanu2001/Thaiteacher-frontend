@@ -63,6 +63,7 @@ export default function IncomeExpensePage({
   user,
   viewAsUid,
   demo = false,
+  tourActive = false,
 }: {
   school: string;
   categories: string[];
@@ -72,6 +73,7 @@ export default function IncomeExpensePage({
   user?: User;
   viewAsUid?: string;
   demo?: boolean;
+  tourActive?: boolean;
 }) {
   const options = [
     ...new Set([
@@ -155,14 +157,18 @@ export default function IncomeExpensePage({
     .sort((a, b) => b.date.localeCompare(a.date))[0];
   const openingRow = openingReport?.rows.find((row) => !row.group && row.name === category);
   const opening = openingRow ? openingRow.cash + openingRow.bank + openingRow.government : null;
+  const tourEntries: Entry[] = useMemo(() => (tourActive || demo) && entries.length === 0 && loanEntries.length === 0 ? [
+    { id: "tour-income", date: today(), kind: "income", category, account: "bank", documentNo: "ร.001/2570", description: "รับเงินอุดหนุน", amount: 2000, party: "หน่วยงานต้นสังกัด", note: "" },
+    { id: "tour-expense", date: today(), kind: "expense", category, account: "bank", documentNo: "จ.001/2570", description: "ซื้ออุปกรณ์การเรียน", amount: 1200, party: "ร้านค้าตัวอย่าง", note: "" },
+  ] : [], [tourActive, demo, entries.length, loanEntries.length, category]);
   const categoryEntries = useMemo(
     () =>
-      [...entries, ...loanEntries]
+      [...entries, ...loanEntries, ...tourEntries]
         .filter((entry) => entry.category === category && fiscalYearOf(entry.date)===fiscalYear)
         .sort(
           (a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id),
         ),
-    [entries, loanEntries, category, fiscalYear],
+    [entries, loanEntries, tourEntries, category, fiscalYear],
   );
   const legacyCount = !demo && !loadingEntries ? entries.filter((entry) => !remoteVersions[entry.id]).length : 0;
   const periodEntries = dateFilter ? categoryEntries.filter((entry) => entry.date === dateFilter) : categoryEntries;
@@ -225,6 +231,26 @@ export default function IncomeExpensePage({
     setError("");
     setOpen(true);
   };
+  useEffect(() => {
+    const showStep = (event: Event) => {
+      const detail = (event as CustomEvent<{ path: string; title: string }>).detail;
+      if (detail?.path !== "/finance/income-expense") return;
+      setOpen(false);
+      if (detail.title === "ตัวอย่างรายการ" && options.includes("เงินอุดหนุนค่าใช้จ่ายรายหัว")) setCategory("เงินอุดหนุนค่าใช้จ่ายรายหัว");
+      if (detail.title === "บันทึกรายรับ" || detail.title === "บันทึกรายจ่าย") {
+        const kind = detail.title === "บันทึกรายรับ" ? "income" : "expense";
+        start(kind);
+        setDraft((current) => ({ ...current, category: "เงินอุดหนุนค่าใช้จ่ายรายหัว", account: "bank", amount: kind === "income" ? "2000" : "1200", description: kind === "income" ? "รับเงินอุดหนุน" : "ซื้ออุปกรณ์การเรียน", documentNo: kind === "income" ? "ร.001/2570" : "จ.001/2570" }));
+      }
+    };
+    window.addEventListener("thaiteacher:tour-step", showStep);
+    return () => window.removeEventListener("thaiteacher:tour-step", showStep);
+  });
+  useEffect(() => {
+    if (tourActive) return;
+    const timer = window.setTimeout(() => setOpen(false), 0);
+    return () => window.clearTimeout(timer);
+  }, [tourActive]);
   const save = async () => {
     const amount = Number(draft.amount);
     if(draft.date && fiscalYearOf(draft.date)!==fiscalYear){setError(`วันที่ต้องอยู่ในปีงบประมาณ ${fiscalYear}`);return}
@@ -674,6 +700,7 @@ export default function IncomeExpensePage({
       {open && (
         <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/60 p-3 sm:p-6">
           <div
+            data-tour="tour-active-modal"
             role="dialog"
             aria-modal="true"
             className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:p-6"

@@ -13,6 +13,7 @@ export type FinancePageState = {
   user?: User;
   viewAsUid?: string;
   demo: boolean;
+  tourActive: boolean;
   categories: string[];
   reportFormDate: string;
   onPreview?: () => void;

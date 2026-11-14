@@ -44,6 +44,7 @@ export default function ProjectEditor({
   return (
     <div className="fixed inset-0 z-50 grid place-items-end bg-slate-950/60 sm:place-items-center sm:p-4">
       <section
+        data-tour="tour-active-modal"
         role="dialog"
         aria-modal="true"
         aria-label="แก้ไขโครงการ"

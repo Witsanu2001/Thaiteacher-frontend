@@ -61,6 +61,11 @@ const exampleRows: Row[] = [
   { name: "เงินรายได้สถานศึกษา", level: 1 },
   { name: "เงินอื่นๆ", level: 0, group: true },
 ].map((r) => ({ ...r, cash: 0, bank: 0, government: 0, note: "" }));
+const tourRows: Row[] = exampleRows.map((row) => ({
+  ...row,
+  cash: row.name === "เงินรายได้สถานศึกษา" ? 4000 : 0,
+  bank: row.name === "เงินอุดหนุนค่าใช้จ่ายรายหัว" ? 10000 : row.name === "เงินอุดหนุนโครงการอาหารกลางวัน" ? 16000 : 0,
+}));
 const input =
   "w-full rounded-lg border border-slate-300 bg-white p-3 text-base text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-white";
 const reportSaveError = (error: unknown, fallback: string) =>
@@ -165,6 +170,7 @@ export default function SchoolFinancePage({
   const [syncError, setSyncError] = useState("");
   const [conflictBackup, setConflictBackup] = useState<Report[]>([]);
   const [savingReport, setSavingReport] = useState(false);
+  const [tourActive, setTourActive] = useState(false);
   const [selectedDay, setSelectedDay] = useState("");
   const [carryOpen, setCarryOpen] = useState(false);
   const [carryError, setCarryError] = useState("");
@@ -179,6 +185,20 @@ export default function SchoolFinancePage({
   const [amountInput, setAmountInput] = useState("");
   const [noteInput, setNoteInput] = useState("");
   const [cellError, setCellError] = useState("");
+  useEffect(() => {
+    const onTour = (event: Event) => {
+      const detail = (event as CustomEvent<{ active: boolean }>).detail;
+      setTourActive(Boolean(detail?.active));
+      if (!detail?.active) {
+        setCarryOpen(false);
+        setCellEdit(null);
+        setOpen(false);
+        setPreviewOpen(false);
+      }
+    };
+    window.addEventListener("thaiteacher:tour-active", onTour);
+    return () => window.removeEventListener("thaiteacher:tour-active", onTour);
+  }, []);
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -276,9 +296,11 @@ export default function SchoolFinancePage({
         String(selectedFiscalYear),
       );
   }, [school?.name, selectedFiscalYear]);
-  const yearReports = (school?.reports || [])
+  const actualYearReports = (school?.reports || [])
     .filter((item) => fiscalYearOf(item.date) === selectedFiscalYear)
     .sort((a, b) => a.date.localeCompare(b.date));
+  const tourReport: Report = { date: currentFiscalYear() === selectedFiscalYear ? today() : firstDayOfFiscalYear(selectedFiscalYear), rows: tourRows };
+  const yearReports = tourActive && actualYearReports.length === 0 ? [tourReport] : actualYearReports;
   const fiscalYears = [
     ...new Set([
       selectedFiscalYear,
@@ -405,7 +427,7 @@ export default function SchoolFinancePage({
     (currentFiscalYear() === selectedFiscalYear
       ? today()
       : firstDayOfFiscalYear(selectedFiscalYear));
-  const carrySource = school?.reports
+  const carrySource = (tourActive && !school?.reports.length ? [tourReport] : school?.reports || [])
     .filter((r) => r.date < carryTarget)
     .at(-1);
   const carryExists = school?.reports.some((r) => r.date === carryTarget);
@@ -567,6 +589,26 @@ export default function SchoolFinancePage({
     setError("");
     setOpen(true);
   };
+  useEffect(() => {
+    const showStep = (event: Event) => {
+      const detail = (event as CustomEvent<{ path: string; target?: string }>).detail;
+      if (detail?.path !== "/finance/school-finance") return;
+      setCarryOpen(false);
+      setCellEdit(null);
+      setOpen(false);
+      setPreviewOpen(false);
+      if (detail.target === "add-day") openCarryForward();
+      if (detail.target === "balance-cell" && report) {
+        openCell(3, "bank");
+        setOperation("subtract");
+        setAmountInput("1200");
+        setNoteInput("ซื้ออุปกรณ์การเรียน");
+      }
+      if (detail.target === "edit-form") begin("template");
+    };
+    window.addEventListener("thaiteacher:tour-step", showStep);
+    return () => window.removeEventListener("thaiteacher:tour-step", showStep);
+  });
   const save = async () => {
     if (!name.trim() || !rows.length || rows.some((r) => !r.name.trim())) {
       setError("กรอกชื่อโรงเรียนและชื่อประเภทเงินให้ครบ");
@@ -734,6 +776,7 @@ export default function SchoolFinancePage({
         onCreateFiscalYear={createFiscalYear}
       />
       <main className={`mx-auto min-h-0 w-full flex-1 overscroll-contain print:hidden ${pathname.endsWith("/contact") || pathname.endsWith("/gimini-ai") ? "flex max-w-none flex-col overflow-hidden p-2 sm:p-4" : "max-w-[1360px] space-y-7 overflow-y-auto p-4 sm:p-8 lg:px-10 lg:pb-10 lg:pt-6"}`}>
+        {tourActive && <p role="status" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">กำลังสอนการใช้งาน · รายการตัวอย่างในหน้าที่ไม่มีข้อมูลจะแสดงชั่วคราวและไม่ถูกบันทึก</p>}
         {viewAsUid && (
           <div
             role="status"
@@ -776,10 +819,11 @@ export default function SchoolFinancePage({
             fiscalYear: selectedFiscalYear,
             report,
             yearReports,
-            allReports: school?.reports || [],
+            allReports: tourActive && !school?.reports.length ? [tourReport] : school?.reports || [],
             user,
             viewAsUid,
             demo,
+            tourActive,
             categories: [
               ...new Set(
                 (report?.rows || school?.reports.at(-1)?.rows || exampleRows)
@@ -1117,6 +1161,7 @@ export default function SchoolFinancePage({
       {cellEdit && (
         <div className="fixed inset-0 z-[60] grid place-items-center bg-slate-950/60 p-4">
           <section
+            data-tour="tour-active-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="cell-title"
@@ -1265,6 +1310,7 @@ export default function SchoolFinancePage({
           role="presentation"
         >
           <section
+            data-tour="tour-active-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="carry-title"
@@ -1343,6 +1389,7 @@ export default function SchoolFinancePage({
       {open && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-3 backdrop-blur-sm">
           <form
+            data-tour="tour-active-modal"
             onSubmit={(e) => {
               e.preventDefault();
               save();

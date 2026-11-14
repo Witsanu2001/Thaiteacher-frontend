@@ -8,8 +8,9 @@ import { useRouteReveal } from "../../shared/funtion/useRouteReveal";
 import { Sparkles } from "lucide-react";
 import GuidedTour from "../../shared/components/GuidedTour";
 
-export default function DemoApp({ onLogin }: { onLogin: () => void }) {
+export default function DemoApp({ onLogin, accountKey }: { onLogin: () => void; accountKey: string }) {
   useState(() => enterDemoScope());
+  useEffect(() => { localStorage.setItem(`thaiteacher-demo-seen:${accountKey}`, "1"); }, [accountKey]);
   const location = useLocation();
   const navigate = useNavigate();
   const active = pageFromPath(location.pathname);
@@ -52,7 +53,7 @@ export default function DemoApp({ onLogin }: { onLogin: () => void }) {
             demo
             onLogin={onLogin}
           />
-          <GuidedTour accountKey="demo" dark={dark} />
+          <GuidedTour accountKey={accountKey} dark={dark} />
         </div>
       </div>
     </div>

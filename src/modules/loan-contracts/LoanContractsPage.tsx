@@ -135,18 +135,21 @@ export default function LoanContractsPage({
   user,
   viewAsUid,
   demo,
+  tourActive = false,
 }: {
   school: string;
   reports: DailyReport[];
   user?: User;
   viewAsUid?: string;
   demo: boolean;
+  tourActive?: boolean;
 }) {
   const key = `school-loan-contracts:${school}`;
   const rememberKey = `school-loan-contract-location:${school}`;
   const [contracts, setContracts] = useState<VersionedLoan[]>(() =>
     demo ? readContracts(key) : [],
   );
+  const tourContract: LoanContract = { ...newContract(school), id: "tour-loan", number: "ย.001/2570", borrower: "ครูตัวอย่าง", position: "ครู", purpose: "จัดกิจกรรมนักเรียน", borrowFrom: "เงินอุดหนุนค่าใช้จ่ายรายหัว", sourceCategory: "เงินอุดหนุนค่าใช้จ่ายรายหัว", sourceAccount: "bank", expenses: [{ id: "tour-expense", description: "จัดกิจกรรมนักเรียน", amount: "2000" }] };
   const [draft, setDraft] = useState<LoanContract>(
     () =>
       readContracts(key)[0] || {
@@ -581,6 +584,24 @@ export default function LoanContractsPage({
     setSection("contract");
     setView("form");
   };
+  useEffect(() => {
+    const showStep = (event: Event) => {
+      const detail = (event as CustomEvent<{ path: string; title: string }>).detail;
+      if (detail?.path !== "/finance/loan-contracts") return;
+      if (detail.title === "ตัวอย่างสัญญา") { setView("list"); return; }
+      setDraft({ ...tourContract, approvedAt: detail.title === "รายการส่งใช้เงินยืม" ? new Date().toISOString() : undefined });
+      setView("form");
+      setSection(detail.title === "รายการส่งใช้เงินยืม" ? "repayment" : detail.title === "แนบเอกสารและตรวจแบบฟอร์ม" ? "attachments" : "contract");
+      setDirty(false);
+    };
+    window.addEventListener("thaiteacher:tour-step", showStep);
+    return () => window.removeEventListener("thaiteacher:tour-step", showStep);
+  });
+  useEffect(() => {
+    if (tourActive) return;
+    const timer = window.setTimeout(() => { if (draft.id === "tour-loan") setView("list"); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [tourActive, draft.id]);
   const remove = async () => {
     if (
       !contracts.some((item) => item.id === draft.id) ||
@@ -693,14 +714,14 @@ export default function LoanContractsPage({
     return (
       <LoanContractList
         school={school}
-        contracts={contracts}
+        contracts={(tourActive || demo) && contracts.length === 0 ? [tourContract] : contracts}
         onCreate={create}
         onOpen={select}
         message={message}
       />
     );
   return (
-    <div className="space-y-5 pb-8">
+    <div data-tour="tour-loan-form" className="space-y-5 pb-8">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900 sm:p-3">
         <div className="flex items-center gap-3">
           <button

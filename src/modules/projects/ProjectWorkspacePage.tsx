@@ -83,7 +83,7 @@ function updateDemoExpense(previous?: PreviewExpense, next?: PreviewExpense) {
 }
 
 export default function ProjectWorkspacePage() {
-  const { fiscalYear, yearReports, user, viewAsUid, demo } = useFinancePage();
+  const { fiscalYear, yearReports, user, viewAsUid, demo, tourActive } = useFinancePage();
   const [projects, setProjects] = useState<SchoolProject[]>([]);
   const [expenses, setExpenses] = useState<PreviewExpense[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -118,7 +118,12 @@ export default function ProjectWorkspacePage() {
     }).catch(() => { if (active) { setProjects([]); setExpenses([]); setError("โหลดโครงการจากระบบไม่สำเร็จ กรุณาลองใหม่"); setLoadedScope(scope); } });
     return () => { active = false; };
   }, [demo, user, viewAsUid, scope]);
-  const selected = projects.find((project) => project.id === selectedId && project.fiscalYear === fiscalYear);
+  const tourProject: SchoolProject = { id: "tour-project", fiscalYear, name: "โครงการพัฒนาสื่อการเรียน", department: "ฝ่ายวิชาการ", owner: "ครูตัวอย่าง", activities: [
+    { id: "tour-internet", name: "ค่าอินเทอร์เน็ต", allocations: [{ id: "tour-allocation", category: "เงินอุดหนุนค่าใช้จ่ายรายหัว", budget: 15000 }] },
+    { id: "tour-equipment", name: "อุปกรณ์การเรียน", allocations: [{ id: "tour-equipment-allocation", category: "เงินอุดหนุนค่าใช้จ่ายรายหัว", budget: 5000 }] },
+  ] };
+  const displayProjects = (tourActive || demo) && projects.length === 0 ? [tourProject] : projects;
+  const selected = displayProjects.find((project) => project.id === selectedId && project.fiscalYear === fiscalYear);
   const firstFundedActivity = selected?.activities.find(
     (activity) => activity.allocations.length,
   );
@@ -138,7 +143,7 @@ export default function ProjectWorkspacePage() {
     ],
     [yearReports],
   );
-  const yearProjects = projects.filter((project) => project.fiscalYear === fiscalYear);
+  const yearProjects = displayProjects.filter((project) => project.fiscalYear === fiscalYear);
   const departments = [
     ...new Set(yearProjects.map((project) => project.department).filter(Boolean)),
   ];
@@ -195,6 +200,30 @@ export default function ProjectWorkspacePage() {
         : { id: newId(), fiscalYear, name: "", department: "", owner: "", activities: [] },
     );
   };
+  useEffect(() => {
+    const showStep = (event: Event) => {
+      const detail = (event as CustomEvent<{ path: string; title: string }>).detail;
+      if (detail?.path !== "/finance/projects") return;
+      setDraft(null);
+      setExpenseDraft(null);
+      if (detail.title === "เพิ่มโครงการหรือนำเข้า Excel" || detail.title === "กำหนดวงเงินรายกิจกรรม") openEditor(tourProject);
+      if (detail.title === "เพิ่มค่าใช้จ่ายกิจกรรม") {
+        setSelectedId(tourProject.id);
+        setExpenseDraft({ activityId: "tour-internet", allocationId: "tour-allocation", date: todayIso(), category: "เงินอุดหนุนค่าใช้จ่ายรายหัว", account: "bank", description: "ค่าอินเทอร์เน็ต", amount: "1,200.00", documentNo: "" });
+      }
+    };
+    window.addEventListener("thaiteacher:tour-step", showStep);
+    return () => window.removeEventListener("thaiteacher:tour-step", showStep);
+  });
+  useEffect(() => {
+    if (tourActive) return;
+    const reset = window.setTimeout(() => {
+      if (selectedId === "tour-project") setSelectedId("");
+      if (draft?.id === "tour-project") setDraft(null);
+      if (expenseDraft?.activityId === "tour-internet") setExpenseDraft(null);
+    }, 0);
+    return () => window.clearTimeout(reset);
+  }, [tourActive, selectedId, draft?.id, expenseDraft?.activityId]);
   const saveDraft = async () => {
     if (!draft?.name.trim()) {
       setError("กรอกชื่อโครงการ");
@@ -785,6 +814,7 @@ export default function ProjectWorkspacePage() {
       {expenseDraft && selected && (
         <div className="fixed inset-0 z-50 grid place-items-end bg-slate-950/60 sm:place-items-center sm:p-4">
           <section
+            data-tour="tour-active-modal"
             role="dialog"
             aria-modal="true"
             aria-label={editingExpenseId ? "แก้ไขค่าใช้จ่าย" : "เพิ่มค่าใช้จ่าย"}

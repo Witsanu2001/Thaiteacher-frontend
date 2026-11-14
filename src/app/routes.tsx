@@ -60,6 +60,7 @@ function IncomeExpense() {
       user={value.user}
       viewAsUid={value.viewAsUid}
       demo={value.demo}
+      tourActive={value.tourActive}
     />
   );
 }
@@ -73,12 +74,13 @@ function Vouchers() {
       user={value.user}
       viewAsUid={value.viewAsUid}
       demo={value.demo}
+      tourActive={value.tourActive}
     />
   );
 }
 function LoanContracts() {
   const value = useFinancePage();
-  return <LoanContractsPage key={value.schoolKey} school={value.school} reports={value.allReports} user={value.user} viewAsUid={value.viewAsUid} demo={value.demo} />;
+  return <LoanContractsPage key={value.schoolKey} school={value.school} reports={value.allReports} user={value.user} viewAsUid={value.viewAsUid} demo={value.demo} tourActive={value.tourActive} />;
 }
 function Exports() {
   const value = useFinancePage();

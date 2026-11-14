@@ -149,7 +149,7 @@ function AppContent({
               onView={startViewing}
               viewBusy={viewBusy}
             />
-            <GuidedTour accountKey={viewing?.uid || user.uid} dark={dark} mode={isAdmin && !viewing ? "admin" : "teacher"} autoStart={!isAdmin || !viewing} aiAllowed={isAdmin || accessState === "lifetime"} />
+            {!isAdmin && <GuidedTour accountKey={user.uid} dark={dark} />}
         </div>
       </div>
     </div>

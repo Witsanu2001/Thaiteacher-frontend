@@ -1,5 +1,5 @@
 import { scopedStorage } from "../../shared/funtion/scopedStorage";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { User } from "firebase/auth";
 import { loadCashbookEntries } from "../../config/services/cashbook.service";
 import { createPortal } from "react-dom";
@@ -43,6 +43,7 @@ export default function VoucherEvidencePage({
   user,
   viewAsUid,
   demo = false,
+  tourActive = false,
 }: {
   school: string;
   fiscalYear: number;
@@ -50,6 +51,7 @@ export default function VoucherEvidencePage({
   user?: User;
   viewAsUid?: string;
   demo?: boolean;
+  tourActive?: boolean;
 }) {
   const [entries, setEntries] = useState<Entry[]>(() =>
     readJson<Entry[]>(`school-cashbook:${school}`, []).filter(
@@ -79,9 +81,9 @@ export default function VoucherEvidencePage({
   const [draft, setDraft] = useState<Voucher | null>(null);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<Entry | null>(null);
-  const visible = useMemo(
-    () =>
-      entries
+  const tourEntry: Entry = { id: "tour-voucher", date: new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Bangkok" }), kind: "expense", category: "เงินอุดหนุนค่าใช้จ่ายรายหัว", account: "bank", documentNo: "จ.001/2570", description: "ซื้ออุปกรณ์การเรียน", amount: 1200, party: "ร้านค้าตัวอย่าง", note: "" };
+  const displayEntries = (tourActive || demo) && entries.length === 0 ? [tourEntry] : entries;
+  const visible = displayEntries
         .filter(
           (entry) =>
             (filter === "all" || entry.kind === filter) &&
@@ -92,13 +94,11 @@ export default function VoucherEvidencePage({
         )
         .sort(
           (a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id),
-        ),
-    [entries, filter, query, vouchers],
-  );
+        );
   const count = {
-    income: entries.filter((e) => e.kind === "income").length,
-    expense: entries.filter((e) => e.kind === "expense").length,
-    ready: entries.filter((e) => Boolean(vouchers[e.id]?.number)).length,
+    income: displayEntries.filter((e) => e.kind === "income").length,
+    expense: displayEntries.filter((e) => e.kind === "expense").length,
+    ready: displayEntries.filter((e) => Boolean(vouchers[e.id]?.number)).length,
   };
   const openEditor = (entry: Entry) => {
     setSelected(entry);
@@ -113,6 +113,22 @@ export default function VoucherEvidencePage({
     );
     setError("");
   };
+  useEffect(() => {
+    const showStep = (event: Event) => {
+      const detail = (event as CustomEvent<{ path: string; title: string }>).detail;
+      if (detail?.path !== "/finance/vouchers") return;
+      setSelected(null);
+      setDraft(null);
+      if (detail.title === "เปิดดูหลักฐาน") openEditor(tourEntry);
+    };
+    window.addEventListener("thaiteacher:tour-step", showStep);
+    return () => window.removeEventListener("thaiteacher:tour-step", showStep);
+  });
+  useEffect(() => {
+    if (tourActive) return;
+    const timer = window.setTimeout(() => { if (selected?.id === "tour-voucher") { setSelected(null); setDraft(null); } }, 0);
+    return () => window.clearTimeout(timer);
+  }, [tourActive, selected?.id]);
   const save = () => {
     if (!selected || !draft) return;
     if (!draft.number.trim() || !draft.purpose.trim()) {
@@ -407,6 +423,7 @@ export default function VoucherEvidencePage({
       {selected && draft && (
         <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/60 p-3 sm:p-6">
           <div
+            data-tour="tour-active-modal"
             role="dialog"
             aria-modal="true"
             className="mx-auto max-w-xl rounded-2xl bg-white p-5 shadow-2xl dark:bg-slate-900 sm:p-6"
