@@ -52,7 +52,7 @@ export default function DemoApp({
   }, [location.pathname, navigate]);
   return (
     <div className={dark ? "dark" : ""}>
-      <div className="min-h-screen bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100">
+      <div className="min-h-dvh bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100">
         <Menu
           active={active}
           onNavigate={(page) => navigate(pathForPage(page))}

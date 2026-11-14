@@ -117,10 +117,10 @@ function AppContent({
   return (
     <div
       className={
-        dark ? "dark min-h-screen print:min-h-0" : "min-h-screen print:min-h-0"
+        dark ? "dark min-h-dvh print:min-h-0" : "min-h-dvh print:min-h-0"
       }
     >
-      <div className="min-h-screen bg-slate-50 text-slate-700 dark:bg-slate-950 dark:text-slate-200 print:min-h-0 print:bg-white">
+      <div className="min-h-dvh bg-slate-50 text-slate-700 dark:bg-slate-950 dark:text-slate-200 print:min-h-0 print:bg-white">
         <Menu active={active} onNavigate={navigate} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} displayName={profile.displayName} accessLabel={accessLabel} accessState={accessState} onSignOut={onSignOut} isSupperAdmin={isAdmin} viewingUserName={viewing ? (viewing.displayName || viewing.schoolName || viewing.email) : null} unreadChatCount={unreadChatCount} />
         {!isAdmin && (
           <SupportChatNotifications

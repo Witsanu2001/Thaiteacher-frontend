@@ -77,7 +77,7 @@ export default function NotificationBell({ demo = false }: { demo?: boolean }) {
         <Bell size={20} />
         {unread > 0 && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white dark:ring-slate-900">{unread > 99 ? "99+" : unread}</span>}
       </button>
-      {open && <section aria-label="การแจ้งเตือน" className="absolute right-0 top-12 z-50 max-h-[min(70dvh,500px)] w-[min(360px,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+      {open && <section aria-label="การแจ้งเตือน" className="fixed left-3 right-3 top-20 z-50 max-h-[min(70dvh,500px)] overflow-y-auto rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-[360px]">
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800">
           <h2 className="font-semibold text-slate-900 dark:text-white">การแจ้งเตือน</h2>
           <button type="button" onClick={() => setOpen(false)} aria-label="ปิดการแจ้งเตือน" className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><X size={17} /></button>

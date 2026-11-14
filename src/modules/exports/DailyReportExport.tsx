@@ -416,7 +416,7 @@ export default function DailyReportExport({
       aria-modal="true"
       aria-label="ตัวอย่างรายงานก่อนส่งออก"
     >
-      <div className="mx-auto max-w-[210mm] print:mx-0 print:w-[210mm] print:max-w-none">
+      <div className="mx-auto max-w-[210mm] print:mx-0 print:w-full print:max-w-none">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-3 dark:bg-slate-900 print:hidden">
           <div>
             <h2 className="font-semibold">ตัวอย่างรายงานก่อนส่งออก</h2>
@@ -469,9 +469,9 @@ export default function DailyReportExport({
         </div>
         {exportError && <p role="alert" className="mb-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 print:hidden">{exportError}</p>}
         {!pageImages.length && !exportError && <div role="status" className="grid min-h-72 place-items-center rounded-xl bg-white text-blue-600"><Loader2 className="size-8 animate-spin" aria-label="กำลังเตรียมรายงาน" /></div>}
-        <div className="space-y-5 print:space-y-0">
+        <div data-report-print-pages className="space-y-5 print:space-y-0">
           {pageImages.map((page, index) => (
-            <img key={index} data-report-print-page src={page.image} alt={`รายงานเงินคงเหลือ หน้าที่ ${index + 1}`} className="mx-auto block h-auto w-full bg-white shadow-xl print:m-0 print:h-[296mm] print:w-[209mm] print:max-w-none print:break-after-page print:shadow-none last:print:break-after-auto" />
+            <img key={index} data-report-print-page src={page.image} alt={`รายงานเงินคงเหลือ หน้าที่ ${index + 1}`} className="mx-auto block h-auto w-full bg-white shadow-xl print:shadow-none" />
           ))}
         </div>
       </div>

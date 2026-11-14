@@ -1,5 +1,5 @@
 @import "tailwindcss";
-html{min-width:320px;min-height:100%;background:#f7f8fa}body{margin:0;min-width:320px;min-height:100vh;background:#f7f8fa}#root{min-height:100vh}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #73b4a3;outline-offset:2px}::selection{background:#d5eee7;color:#173f37}
+html{min-width:320px;min-height:100%;background:#f7f8fa}body{margin:0;min-width:320px;min-height:100dvh;background:#f7f8fa}#root{min-height:100dvh}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #73b4a3;outline-offset:2px}::selection{background:#d5eee7;color:#173f37}
 select:not([multiple]){appearance:none;padding-inline-end:2.75rem;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364758b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-position:right 1rem center;background-repeat:no-repeat;background-size:1rem}
 .dark select:not([multiple]){background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23cbd5e1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")}
 @custom-variant dark (&:where(.dark, .dark *));
@@ -11,6 +11,11 @@ select:not([multiple]){appearance:none;padding-inline-end:2.75rem;background-ima
 @media print {
   html:has([data-report-print-root]), body:has([data-report-print-root]) { min-height:0!important; height:auto!important; margin:0!important; padding:0!important; background:#fff!important; }
   body:has([data-report-print-root]) > :not([data-report-print-root]) { display:none!important; }
-  [data-report-print-root] { position:static!important; width:210mm!important; height:auto!important; overflow:visible!important; margin:0!important; padding:0!important; background:#fff!important; }
-  [data-report-print-page] { width:209mm!important; height:295.58mm!important; max-width:none!important; margin:0!important; box-shadow:none!important; break-inside:avoid; page-break-inside:avoid; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+  [data-report-print-root] { position:static!important; width:100%!important; height:auto!important; overflow:visible!important; margin:0!important; padding:0!important; background:#fff!important; }
+  [data-report-print-root] > div, [data-report-print-pages] { width:100%!important; max-width:none!important; margin:0!important; padding:0!important; }
+  [data-report-print-pages] { font-size:0!important; line-height:0!important; }
+  /* iPad Safari reserves its own print margins. A fixed A4 image height can
+     exceed that printable area and create an empty second page. */
+  [data-report-print-page] { display:block!important; width:auto!important; height:auto!important; max-width:100%!important; max-height:250mm!important; object-fit:contain!important; margin:0 auto!important; box-shadow:none!important; break-inside:avoid; page-break-inside:avoid; break-after:page; page-break-after:always; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+  [data-report-print-page]:last-child { break-after:auto!important; page-break-after:auto!important; }
 }

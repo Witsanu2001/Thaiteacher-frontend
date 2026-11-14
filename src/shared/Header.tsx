@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Menu, Moon, Sun, X } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { ChevronDown, Menu, Moon, School, Sun, X } from "lucide-react";
 import { firstDayOfFiscalYear } from "../shared/funtion/fiscalYear";
 import NotificationBell from "./components/NotificationBell";
 import AiHeaderButton from "./components/AiHeaderButton";
@@ -25,12 +25,9 @@ const PageTitle = ({ active }: { active: string }) => (
   <>
     <h1
       data-tour="page-title"
-      className="flex items-center gap-3 truncate text-2xl font-semibold tracking-tight text-slate-800 dark:text-slate-100 sm:text-3xl"
+      title={active}
+      className="line-clamp-2 text-base font-semibold leading-snug tracking-tight text-slate-800 dark:text-slate-100 sm:line-clamp-1 sm:text-xl xl:text-2xl"
     >
-      <span
-        aria-hidden="true"
-        className="h-7 w-1.5 shrink-0 rounded-full bg-gradient-to-b from-blue-500 to-cyan-400 shadow-sm shadow-blue-300 dark:shadow-blue-900"
-      />
       {active}
     </h1>
   </>
@@ -54,7 +51,24 @@ export default function Header({
   const [carry, setCarry] = useState(true);
   const [error, setError] = useState("");
   const [creatingYear, setCreatingYear] = useState(false);
+  const [contextOpen, setContextOpen] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
+  const contextId = useId();
+  useEffect(() => {
+    if (!contextOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !headerRef.current?.contains(event.target)) setContextOpen(false);
+    };
+    const closeEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setContextOpen(false); };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeEscape);
+    };
+  }, [contextOpen]);
   const chooseYear = (value: string) => {
+    setContextOpen(false);
     if (value === "new") {
       setNewYear(Math.max(...fiscalYears, fiscalYear) + 1);
       setCarry(true);
@@ -92,84 +106,43 @@ export default function Header({
   };
   return (
     <>
-      <header className="shrink-0 border-b border-blue-100 bg-gradient-to-r from-white via-white to-sky-50/70 px-4 py-3 shadow-sm shadow-blue-100/40 dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-blue-950/30 dark:shadow-none sm:px-6 lg:py-4 print:hidden">
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <button
-            type="button"
-            onClick={onMenu}
-            data-tour="menu-button"
-            className="grid size-10 shrink-0 place-items-center rounded-xl text-slate-600 motion-safe:transition-colors hover:bg-blue-50 hover:text-blue-700 dark:text-slate-200 dark:hover:bg-slate-800 lg:hidden"
-            aria-label="เปิดเมนู"
-          >
-            <Menu size={22} />
+      <header ref={headerRef} data-app-header className="sticky top-0 z-30 shrink-0 border-b border-blue-100 bg-white px-3 py-2.5 shadow-sm shadow-blue-100/30 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none sm:px-5 sm:py-3 print:hidden">
+        <div className="flex min-h-11 min-w-0 items-center gap-2 sm:gap-3">
+          <button type="button" onClick={() => { setContextOpen(false); onMenu(); }} data-tour="menu-button" aria-label="เปิดเมนู" className="grid size-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 lg:hidden">
+            <Menu size={23} />
           </button>
-          <div className="hidden min-w-0 lg:block">
+          <div className="min-w-0 flex-1">
             <PageTitle active={active} />
+            {!demo ? <button type="button" data-tour="fiscal-year" aria-label="ข้อมูลโรงเรียนและปีงบประมาณ" aria-expanded={contextOpen} aria-controls={contextId} onClick={() => setContextOpen(value => !value)} className="mt-0.5 inline-flex max-w-full items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-300 sm:hidden">
+              <span className="truncate">ปีงบฯ {fiscalYear}</span><ChevronDown size={13} className="shrink-0" />
+            </button> : <button type="button" onClick={onLogin} className="mt-0.5 text-xs font-semibold text-blue-600 dark:text-blue-300 sm:hidden">ทดลองใช้ 9 วัน</button>}
           </div>
-          <div className="ml-auto flex min-w-0 items-center gap-1 sm:gap-2">
-            <span
-              className="max-w-[38vw] truncate rounded-full border border-blue-100 bg-white/80 px-3 py-1.5 text-right text-sm font-semibold text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100 sm:max-w-[280px] sm:text-base lg:max-w-[200px] xl:max-w-[320px]"
-              title={schoolName || ""}
-            >
-              {schoolName || "ยังไม่ได้ตั้งค่าโรงเรียน"}
-            </span>
-            {!demo ? (
-              <select
-                data-tour="fiscal-year"
-                aria-label="ปีงบประมาณ"
-                value={fiscalYear}
-                onChange={(e) => chooseYear(e.target.value)}
-                className="hidden max-w-44 rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-800 shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200 lg:block"
-              >
-                {yearOptions}
-              </select>
-            ) : (
-              <button
-                type="button"
-                data-tour="fiscal-year"
-                onClick={onLogin}
-                className="hidden rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200 motion-safe:transition-all hover:-translate-y-0.5 hover:shadow-lg dark:shadow-blue-950 lg:block"
-              >
-                ทดลองใช้ 9 วัน
-              </button>
-            )}
+          {!demo ? <button type="button" data-tour="fiscal-year" aria-label="ข้อมูลโรงเรียนและปีงบประมาณ" aria-expanded={contextOpen} aria-controls={contextId} onClick={() => setContextOpen(value => !value)} className="hidden min-w-0 max-w-[280px] items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-blue-700 dark:hover:bg-slate-700 sm:flex md:max-w-[320px] lg:max-w-[240px] xl:max-w-[320px]">
+            <School size={17} className="shrink-0 text-slate-400" />
+            <span className="min-w-0 truncate font-medium text-slate-600 dark:text-slate-300" title={schoolName}>{schoolName || "โรงเรียนของคุณ"}</span>
+            <span className="shrink-0 border-l border-slate-200 pl-2 font-semibold tabular-nums text-blue-700 dark:border-slate-600 dark:text-blue-300">{fiscalYear}</span>
+            <ChevronDown size={15} className="shrink-0 text-slate-400" />
+          </button> : <button type="button" data-tour="fiscal-year" onClick={onLogin} className="hidden shrink-0 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:block">ทดลองใช้ 9 วัน</button>}
+          <div className="flex shrink-0 items-center gap-0.5 border-l border-slate-200 pl-1 dark:border-slate-700 sm:gap-1 sm:pl-2">
             {aiAllowed && !demo && <AiHeaderButton to="/finance/gimini-ai" />}
             <NotificationBell demo={demo} />
-            <button
-              type="button"
-              onClick={onToggleDark}
-              aria-label="เปลี่ยนธีม"
-              className="grid size-10 shrink-0 place-items-center rounded-xl text-slate-600 motion-safe:transition-all hover:-rotate-12 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
+            <button type="button" onClick={onToggleDark} aria-label="เปลี่ยนธีม" title={dark ? "ใช้โหมดสว่าง" : "ใช้โหมดมืด"} className="grid size-10 shrink-0 place-items-center rounded-xl text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-700 dark:text-slate-200 dark:hover:bg-slate-800">
               {dark ? <Sun size={20} /> : <Moon size={20} />}
             </button>
           </div>
         </div>
-        <div className="mt-3 flex min-w-0 flex-wrap items-end justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-800 lg:hidden">
-          <div className="min-w-0">
-            <PageTitle active={active} />
+        {contextOpen && !demo && <section id={contextId} role="dialog" aria-label="โรงเรียนและปีงบประมาณ" className="absolute left-3 right-3 top-full z-40 mt-2 rounded-2xl border border-blue-100 bg-white p-4 text-slate-800 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:left-auto sm:right-5 sm:w-80">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0"><p className="text-xs font-medium text-slate-500">โรงเรียนที่กำลังใช้งาน</p><p className="mt-1 break-words font-semibold">{schoolName || "ยังไม่ได้ตั้งค่าโรงเรียน"}</p></div>
+            <button type="button" onClick={() => setContextOpen(false)} aria-label="ปิดข้อมูลโรงเรียน" className="grid size-8 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><X size={17} /></button>
           </div>
-          {!demo ? (
-            <select
-              data-tour="fiscal-year"
-              aria-label="ปีงบประมาณ"
-              value={fiscalYear}
-              onChange={(e) => chooseYear(e.target.value)}
-              className="max-w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-800 shadow-sm dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200"
-            >
+          <label className="mt-4 block text-sm font-medium">ปีงบประมาณ
+            <select aria-label="ปีงบประมาณ" value={fiscalYear} onChange={event => chooseYear(event.target.value)} className="mt-2 w-full rounded-xl border border-blue-200 bg-blue-50 px-3 py-3 font-semibold text-blue-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">
               {yearOptions}
             </select>
-          ) : (
-            <button
-              type="button"
-              data-tour="fiscal-year"
-              onClick={onLogin}
-              className="rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 px-3 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200 motion-safe:transition-transform hover:-translate-y-0.5 dark:shadow-blue-950"
-            >
-              เข้าสู่ระบบ
-            </button>
-          )}
-        </div>
+          </label>
+          <p className="mt-2 text-xs leading-5 text-slate-500">เลือกปีเพื่อดูข้อมูล หรือเปิดปีงบประมาณใหม่</p>
+        </section>}
       </header>
       {opening && (
         <div

@@ -21,6 +21,8 @@ import ThaiDatePicker from "../../shared/components/ThaiDatePicker";
 import { readProjectWorkbook } from "./readProjectWorkbook";
 import ProjectEditor from "./ProjectEditor";
 import ActivityBalanceCard from "./ActivityBalanceCard";
+import { projectFundUsage } from "./projectFundUsage";
+import { thaiDate } from "../../shared/funtion/thaiDate";
 import {
   newId,
   projectBudget,
@@ -160,24 +162,11 @@ export default function ProjectWorkspacePage() {
   const yearExpenses = viewExpenses.filter((entry) => yearProjects.some((project) => entry.id.startsWith(`pexp_${project.id}_`)));
   const plannedTotal = yearProjects.reduce((sum, project) => sum + projectBudget(project), 0);
   const spentTotal = yearExpenses.reduce((sum, entry) => sum + entry.amount, 0);
-  const plannedByCategory = yearProjects.reduce<Record<string, number>>((totals, project) => {
-    for (const activity of project.activities) for (const allocation of activity.allocations) {
-      if (allocation.category) totals[allocation.category] = (totals[allocation.category] || 0) + allocation.budget;
-    }
-    return totals;
-  }, {});
-  const spentByCategory = yearExpenses.reduce<Record<string, number>>((totals, entry) => {
-    totals[entry.category] = (totals[entry.category] || 0) + entry.amount;
-    return totals;
-  }, {});
-  const categoryUsage = [...new Set([...Object.keys(plannedByCategory), ...Object.keys(spentByCategory)])]
-    .map(category => {
-      const planned = plannedByCategory[category] || 0;
-      const spent = spentByCategory[category] || 0;
-      const usedPercent = planned > 0 ? spent / planned * 100 : 0;
-      return { category, planned, spent, remaining: planned - spent, usedPercent };
-    })
-    .sort((a, b) => b.spent - a.spent);
+  const { date: fundReportDate, usage: categoryUsage } = projectFundUsage(
+    yearReports,
+    yearProjects.flatMap(project => project.activities.flatMap(activity => activity.allocations.map(allocation => allocation.category))),
+    yearExpenses,
+  );
   const visible = yearProjects.filter(
     (project) =>
       (department === "ทั้งหมด" || department === project.department) &&
@@ -719,8 +708,34 @@ export default function ProjectWorkspacePage() {
             {[["วงเงินตามแผน", plannedTotal, "border-blue-500 dark:border-t-blue-500", "text-blue-600 dark:text-blue-300"], ["ใช้จ่ายแล้ว", spentTotal, "border-rose-400 dark:border-t-rose-400", "text-rose-600 dark:text-rose-300"], ["คงเหลือตามแผน", plannedTotal - spentTotal, "border-emerald-400 dark:border-t-emerald-400", "text-emerald-700 dark:text-emerald-300"]].map(([label, value, border, color], index) => <div key={label} data-tour={index === 0 ? "project-summary" : undefined} className={`min-w-0 rounded-2xl border border-slate-200 border-t-4 ${border} bg-white p-4 dark:border-slate-800 dark:bg-slate-900`}><p className="text-sm text-slate-500">{label}</p><p className={`mt-2 text-xl font-bold tabular-nums sm:text-2xl ${color}`}>{money(Number(value))} <span className="text-sm font-medium">บาท</span></p></div>)}
           </section>
           <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex flex-wrap items-center justify-between gap-1"><h3 className="font-bold">ใช้จ่ายจากประเภทเงิน</h3><span className="text-xs text-slate-500">รวมจากรายการค่าใช้จ่ายของทุกโครงการ</span></div>
-            {categoryUsage.length ? <div className="mt-3 grid gap-3 lg:grid-cols-2">{categoryUsage.map(({ category, planned, spent, remaining, usedPercent }) => <div key={category} className="min-w-0 rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-800"><div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm"><span className="font-semibold" title={category}>{category}</span><span className="tabular-nums text-slate-500">วงเงิน {money(planned)} บาท</span></div><div className="mt-3 flex items-center justify-between gap-2 text-sm tabular-nums"><span className="font-semibold text-rose-600 dark:text-rose-300">ใช้ไป {planned ? usedPercent.toFixed(1) : "—"}% <span className="font-normal">({money(spent)} บาท)</span></span><span className="font-semibold text-emerald-700 dark:text-emerald-300">เหลือ {planned ? Math.max(0, 100 - usedPercent).toFixed(1) : "—"}% <span className="font-normal">({money(remaining)} บาท)</span></span></div><div role="meter" aria-label={`${category} ใช้ไป`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, Math.max(0, usedPercent))} className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-emerald-400 dark:bg-emerald-600"><div className="h-full bg-rose-500 transition-[width]" style={{ width: `${Math.min(100, Math.max(0, usedPercent))}%` }}/></div>{remaining < 0 && <p className="mt-1 text-xs font-semibold text-rose-600">ใช้เกินวงเงิน {money(-remaining)} บาท</p>}</div>)}</div> : <p className="mt-3 text-sm text-slate-500">ยังไม่มีวงเงินหรือรายการค่าใช้จ่าย</p>}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-bold">ใช้จ่ายจากประเภทเงิน</h3>
+              <span className="text-xs text-slate-500">{fundReportDate ? `อ้างอิงรายงานเงินคงเหลือประจำวันที่ ${thaiDate(fundReportDate)}` : "ยังไม่มีรายงานเงินคงเหลือประจำวัน"}</span>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">เทียบยอดใช้ในโครงการกับยอดคงเหลือล่าสุด รวมเงินสด เงินฝากธนาคาร และเงินฝากส่วนราชการผู้เบิก</p>
+            {categoryUsage.length ? (
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                {categoryUsage.map(({ category, total, spent, remaining, usedPercent }) => (
+                  <div key={category} className="min-w-0 rounded-xl bg-slate-50 px-4 py-4 dark:bg-slate-800">
+                    <p className="font-semibold" title={category}>{category}</p>
+                    {remaining === null ? <p className="mt-3 text-sm text-slate-500">ไม่พบประเภทเงินนี้ในรายงานล่าสุด</p> : <>
+                      <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="text-sm text-slate-500">คงเหลือในรายงาน</span>
+                        <strong className="text-xl tabular-nums text-emerald-700 dark:text-emerald-300">{money(remaining)} <span className="text-sm font-medium">บาท</span></strong>
+                      </div>
+                      <div className="mt-3 grid gap-1 text-sm tabular-nums sm:grid-cols-2">
+                        <span className="font-semibold text-rose-600 dark:text-rose-300">ใช้ในโครงการ {usedPercent.toFixed(1)}% <span className="font-normal">({money(spent)} บาท)</span></span>
+                        <span className="font-semibold text-emerald-700 dark:text-emerald-300 sm:text-right">เหลือ {total && total > 0 ? Math.max(0, remaining / total * 100).toFixed(1) : "0.0"}%</span>
+                      </div>
+                      <div role="meter" aria-label={`${category} ใช้ในโครงการ`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, Math.max(0, usedPercent))} aria-valuetext={`ใช้ในโครงการ ${usedPercent.toFixed(1)}% คงเหลือ ${money(remaining)} บาท`} className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-emerald-400 dark:bg-emerald-600">
+                        <div className="h-full bg-rose-500 transition-[width]" style={{ width: `${Math.min(100, Math.max(0, usedPercent))}%` }} />
+                      </div>
+                      <p className="mt-2 text-xs text-slate-500">ยอดอ้างอิง {money(total || 0)} บาท = คงเหลือล่าสุด + ใช้ในโครงการถึงวันที่รายงาน</p>
+                    </>}
+                  </div>
+                ))}
+              </div>
+            ) : <p className="mt-3 text-sm text-slate-500">ยังไม่มีประเภทเงินที่ใช้ในโครงการ</p>}
           </section>
           <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 md:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]">
             <select
