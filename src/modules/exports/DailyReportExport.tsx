@@ -363,14 +363,15 @@ export default function DailyReportExport({
     downloadBlob(blob, `รายงานเงินคงเหลือ_${date}.docx`);
     remember("Word");
   };
-  const downloadPdf = async () => {
+  const createPdf = async () => {
     const pages = reportRef.current?.querySelectorAll<HTMLElement>("[data-report-page]");
     if (!pages?.length) throw new Error("ไม่พบหน้ารายงาน");
     await document.fonts.ready;
     const [{ toPng }, { jsPDF }] = await Promise.all([import("html-to-image"), import("jspdf")]);
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
     for (const [index, page] of Array.from(pages).entries()) {
-      if (page.scrollWidth > page.clientWidth + 2 || page.scrollHeight > page.clientHeight + 2)
+      const content = page.querySelector<HTMLElement>("[data-report-content]");
+      if (content && Number(content.style.transform.match(/scale\(([^)]+)\)/)?.[1] || 1) < 0.82)
         throw new Error("report_page_overflow");
       const image = await toPng(page, {
         pixelRatio: 2,
@@ -383,8 +384,32 @@ export default function DailyReportExport({
       if (index) pdf.addPage();
       pdf.addImage(image, "PNG", 0, 0, 210, 297);
     }
+    return pdf;
+  };
+  const downloadPdf = async () => {
+    const pdf = await createPdf();
     pdf.save(`รายงานเงินคงเหลือ_${date}.pdf`);
     remember("PDF");
+  };
+  const printPdf = async () => {
+    // Open the tab during the click event so Safari permits the PDF viewer.
+    const viewer = window.open("", "_blank");
+    if (!viewer) {
+      setExportError("กรุณาอนุญาตหน้าต่างใหม่เพื่อเปิด PDF สำหรับพิมพ์");
+      return;
+    }
+    try {
+      const pdf = await createPdf();
+      const url = URL.createObjectURL(pdf.output("blob"));
+      viewer.location.replace(url);
+      remember("Print");
+      window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60_000);
+    } catch (error) {
+      viewer.close();
+      setExportError(error instanceof Error && error.message === "report_page_overflow"
+        ? "เนื้อหาแน่นเกินหนึ่งหน้า กรุณาลดขนาดตัวอักษรหรือเพิ่มหน้ากระดาษก่อนพิมพ์"
+        : "สร้าง PDF สำหรับพิมพ์ไม่สำเร็จ กรุณาลองอีกครั้ง");
+    }
   };
   const runExport = async (format: "Excel" | "PDF" | "Word") => {
     if (exporting) return;
@@ -429,20 +454,11 @@ export default function DailyReportExport({
             </button>
             <button
               type="button"
-              onClick={() => {
-                const pages = reportRef.current?.querySelectorAll<HTMLElement>("[data-report-page]");
-                if (Array.from(pages || []).some(page => page.scrollWidth > page.clientWidth + 2 || page.scrollHeight > page.clientHeight + 2)) {
-                  setExportError("เนื้อหาเกินหน้ากระดาษ A4 กรุณาลดขนาดตัวอักษรหรือเพิ่มหน้ากระดาษก่อนพิมพ์");
-                  return;
-                }
-                setExportError("");
-                remember("Print");
-                window.print();
-              }}
+              onClick={() => void printPdf()}
               disabled={Boolean(exporting)}
               className="inline-flex items-center gap-2 rounded-lg border border-blue-600 px-3 py-2 text-sm text-blue-700 dark:text-blue-300"
             >
-              <Printer size={17} /> พิมพ์
+              <Printer size={17} /> เปิด PDF เพื่อพิมพ์
             </button>
             <button
               type="button"
