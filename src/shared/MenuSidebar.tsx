@@ -73,65 +73,42 @@ function Menu({
 }: MenuProps) {
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [accountMenuMounted, setAccountMenuMounted] = useState(false);
+  const [settingsListOpen, setSettingsListOpen] = useState(false);
+  const settingsMenuRef = useRef<HTMLDivElement>(null);
   const [notificationPreferences, setNotificationPreferences] = useState(
     readNotificationPreferences,
   );
-  const accountMenuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!confirmSignOut && !settingsOpen && !accountMenuOpen) return;
+    if (!confirmSignOut && !settingsOpen && !settingsListOpen) return;
     const onEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setConfirmSignOut(false);
         setSettingsOpen(false);
-        setAccountMenuOpen(false);
+        setSettingsListOpen(false);
       }
     };
     window.addEventListener("keydown", onEscape);
     return () => window.removeEventListener("keydown", onEscape);
-  }, [accountMenuOpen, confirmSignOut, settingsOpen]);
+  }, [confirmSignOut, settingsOpen, settingsListOpen]);
   useEffect(() => {
-    if (!accountMenuOpen) return;
+    if (!settingsListOpen) return;
     const closeOnOutsideClick = (event: PointerEvent) => {
-      if (
-        event.target instanceof Node &&
-        !accountMenuRef.current?.contains(event.target)
-      ) {
-        setAccountMenuOpen(false);
-      }
+      if (event.target instanceof Node && !settingsMenuRef.current?.contains(event.target)) setSettingsListOpen(false);
     };
     document.addEventListener("pointerdown", closeOnOutsideClick);
-    return () =>
-      document.removeEventListener("pointerdown", closeOnOutsideClick);
-  }, [accountMenuOpen]);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, [settingsListOpen]);
   useEffect(() => {
     localStorage.setItem(
       notificationPreferencesKey,
       JSON.stringify(notificationPreferences),
     );
   }, [notificationPreferences]);
-  useEffect(() => {
-    if (accountMenuOpen || !accountMenuMounted) return;
-    const timeout = window.setTimeout(
-      () => setAccountMenuMounted(false),
-      200,
-    );
-    return () => window.clearTimeout(timeout);
-  }, [accountMenuMounted, accountMenuOpen]);
   const nav = (p: string) => {
     onNavigate(p);
+    setSettingsListOpen(false);
     onClose();
   };
-  const toggleAccountMenu = () => {
-    if (accountMenuOpen) {
-      setAccountMenuOpen(false);
-      return;
-    }
-    setAccountMenuMounted(true);
-    window.requestAnimationFrame(() => setAccountMenuOpen(true));
-  };
-
   return (
     <>
       {mobileOpen && (
@@ -181,17 +158,15 @@ function Menu({
                   (!isSupperAdmin || Boolean(viewingUserName))) ||
                 (role === "superAdmin" && isSupperAdmin),
             )
-            .filter(({ label }) => label !== "ผู้ช่วย AI")
+            .filter(({ label, hidden }) => !hidden && label !== "ผู้ช่วย AI" && label !== "ติดต่อเรา")
             .map(({ label }) => {
               const Icon = menuIcons[label] || Wallet;
-              const hasUnreadChat = label === "ติดต่อเรา" && unreadChatCount > 0;
               return (
               <button
                 key={label}
                 data-tour={label === "ภาพรวมงบประมาณ" ? "sidebar-overview" : undefined}
                 onClick={() => nav(label)}
                 aria-current={active === label ? "page" : undefined}
-                aria-label={hasUnreadChat ? `${label} มีข้อความใหม่` : undefined}
                 className={`group flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] motion-safe:transition-all motion-safe:duration-200 ${
                   active === label
                     ? "bg-gradient-to-r from-blue-600 to-sky-600 font-semibold text-white shadow-md shadow-blue-200/70 dark:shadow-blue-950/30"
@@ -200,123 +175,31 @@ function Menu({
               >
                 <span className="relative shrink-0">
                   <Icon size={17} strokeWidth={1.9} className="motion-safe:transition-transform motion-safe:group-hover:scale-110" />
-                  {hasUnreadChat && (
-                    <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900" />
-                  )}
                 </span>
                 <span>{label === "ผู้ใช้งาน" ? "จัดการผู้ใช้งาน" : label}</span>
               </button>
               );
             })}
         </nav>
-        {!isSupperAdmin && <button
-            type="button"
-            onClick={() => window.dispatchEvent(new Event("thaiteacher:start-tour"))}
-            className="mt-3 flex min-h-11 w-full shrink-0 items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-3 text-left text-sm font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900"
-          >
-            <BookOpen size={17} /> สอนการใช้งาน
-          </button>}
-
-        {/* User Profile */}
-        <div className="mt-auto flex shrink-0 flex-col gap-3 pt-3">
-          {/* User Profile */}
-          <div
-            ref={accountMenuRef}
-            className={isDemo ? "rounded-2xl" : "relative"}
-          >
-            {!isDemo ? (
-            <button
-              type="button"
-              onClick={toggleAccountMenu}
-              aria-expanded={accountMenuOpen}
-              aria-haspopup="menu"
-              className="flex w-full items-center gap-2 rounded-2xl border border-slate-100 bg-white p-2.5 text-left shadow-sm hover:border-blue-200 dark:border-slate-800 dark:bg-slate-800 dark:hover:border-slate-700"
-            >
-              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-orange-100 text-xs font-semibold text-orange-800">
-                {displayName.trim().charAt(0) || "?"}
-              </span>
-              <span className="min-w-0 flex-1">
-                <b className="block truncate text-[11px] text-slate-700 dark:text-slate-200">
-                  {displayName}
-                </b>
-                <small
-                  className={`block text-[10px] leading-4 ${
-                    accessState === "trial"
-                      ? "text-blue-600 dark:text-blue-300"
-                      : accessState === "paid" || accessState === "lifetime"
-                        ? "text-emerald-600 dark:text-emerald-300"
-                        : "text-amber-600 dark:text-amber-300"
-                  }`}
-                >
-                  {accessLabel}
-                </small>
-              </span>
-              <Settings
-                size={16}
-                aria-hidden="true"
-                className={`shrink-0 text-slate-400 motion-safe:transition-transform motion-safe:duration-500 ${
-                  accountMenuOpen ? "rotate-[360deg]" : "rotate-0"
-                }`}
-              />
-            </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onSignOut}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-blue-500/25 transition-colors hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-              >
-                <LogIn size={16} />
-                เข้าสู่ข้อมูลจริง
-              </button>
-            )}
-            {accountMenuMounted && !isDemo && (
-              <div
-                role="menu"
-                aria-label="เมนูบัญชีผู้ใช้"
-                className={`absolute bottom-full left-0 right-0 z-50 mb-2 origin-bottom overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none dark:border-slate-700 dark:bg-slate-900 ${
-                  accountMenuOpen
-                    ? "translate-y-0 scale-100 opacity-100"
-                    : "pointer-events-none translate-y-2 scale-95 opacity-0"
-                }`}
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setAccountMenuOpen(false);
-                    setSettingsOpen(true);
-                  }}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-300"
-                >
-                  <Settings2 size={16} />
-                  ตั้งค่าระบบ
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setAccountMenuOpen(false);
-                    window.dispatchEvent(new Event("thaiteacher:open-legal"));
-                  }}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-300"
-                >
-                  <Cookie size={16} />
-                  คุกกี้และข้อตกลง
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setAccountMenuOpen(false);
-                    setConfirmSignOut(true);
-                  }}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950"
-                >
-                  <LogOut size={16} />
-                  ออกจากระบบ
-                </button>
-              </div>
-            )}
+        <div ref={settingsMenuRef} className="relative shrink-0 border-t border-slate-200 pt-3 dark:border-slate-800">
+        {settingsListOpen && <div id="sidebar-settings-list" aria-label="การตั้งค่าบัญชี" className="absolute bottom-full left-0 right-0 z-50 mb-2 max-h-[min(24rem,65dvh)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+            <p className="px-3 pb-2 text-xs font-semibold text-slate-400 dark:text-slate-500">บัญชีและการตั้งค่า</p>
+            {!isDemo && <button type="button" onClick={() => nav("โปรไฟล์บัญชี")} aria-current={active === "โปรไฟล์บัญชี" ? "page" : undefined} className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] hover:bg-blue-50 dark:hover:bg-slate-800 ${active === "โปรไฟล์บัญชี" ? "bg-blue-100 font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300" : "text-slate-600 dark:text-slate-300"}`}><UsersRound size={17} /> แก้ไขโปรไฟล์</button>}
+            {!isSupperAdmin && <>
+              <button type="button" onClick={() => nav("ติดต่อเรา")} aria-current={active === "ติดต่อเรา" ? "page" : undefined} className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] hover:bg-blue-50 dark:hover:bg-slate-800 ${active === "ติดต่อเรา" ? "bg-blue-100 font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300" : "text-slate-600 dark:text-slate-300"}`}><MessageCircle size={17} /> ติดต่อเรา{unreadChatCount > 0 && <span className="ml-auto size-2.5 rounded-full bg-red-500" aria-label="มีข้อความใหม่" />}</button>
+              <button type="button" onClick={() => { setSettingsListOpen(false); onClose(); window.dispatchEvent(new Event("thaiteacher:start-tour")); }} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] text-slate-600 hover:bg-blue-50 dark:text-slate-300 dark:hover:bg-slate-800"><BookOpen size={17} /> สอนการใช้งาน</button>
+            </>}
+            <button type="button" onClick={() => { setSettingsListOpen(false); onClose(); setSettingsOpen(true); }} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] text-slate-600 hover:bg-blue-50 dark:text-slate-300 dark:hover:bg-slate-800"><Settings2 size={17} /> ตั้งค่าการแจ้งเตือน</button>
+            <button type="button" onClick={() => { setSettingsListOpen(false); onClose(); window.dispatchEvent(new Event("thaiteacher:open-legal")); }} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] text-slate-600 hover:bg-blue-50 dark:text-slate-300 dark:hover:bg-slate-800"><Cookie size={17} /> คุกกี้และข้อตกลง</button>
+            {!isDemo && <button type="button" onClick={() => { setSettingsListOpen(false); onClose(); setConfirmSignOut(true); }} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950"><LogOut size={17} /> ออกจากระบบ</button>}
+          </div>}
+          <div className="flex items-center gap-1 rounded-2xl border border-slate-100 bg-white p-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-800">
+          {isDemo ? <button type="button" onClick={onSignOut} className="inline-flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-2 text-sm font-semibold text-white hover:bg-blue-700"><LogIn size={16} /> เข้าสู่ข้อมูลจริง</button> :
+            <button type="button" onClick={() => nav("โปรไฟล์บัญชี")} className="flex min-w-0 flex-1 items-center gap-2 rounded-xl p-1 text-left hover:bg-blue-50 dark:hover:bg-slate-700">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-orange-100 text-xs font-semibold text-orange-800">{displayName.trim().charAt(0) || "?"}</span>
+              <span className="min-w-0 flex-1"><b className="block truncate text-[11px] text-slate-700 dark:text-slate-200">{displayName}</b><small className={`block text-[10px] leading-4 ${accessState === "trial" ? "text-blue-600 dark:text-blue-300" : accessState === "paid" || accessState === "lifetime" ? "text-emerald-600 dark:text-emerald-300" : "text-amber-600 dark:text-amber-300"}`}>{accessLabel}</small></span>
+            </button>}
+          <button type="button" onClick={() => setSettingsListOpen((open) => !open)} aria-label="เปิดรายการตั้งค่า" aria-controls="sidebar-settings-list" aria-expanded={settingsListOpen} className={`grid size-9 shrink-0 place-items-center rounded-xl ${settingsListOpen ? "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" : "text-slate-500 hover:bg-blue-50 dark:hover:bg-slate-700"}`}><Settings size={18} /></button>
           </div>
         </div>
       </aside>
@@ -347,19 +230,19 @@ function Menu({
           <section
             role="dialog"
             aria-modal="true"
-            aria-labelledby="notification-settings-title"
-            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-white sm:p-6"
+            aria-labelledby="settings-title"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-white sm:p-6"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">
-                  การตั้งค่า
+                  ตั้งค่าการแจ้งเตือน
                 </p>
                 <h2
-                  id="notification-settings-title"
+                  id="settings-title"
                   className="mt-1 text-xl font-bold"
                 >
-                  ตั้งค่าการแจ้งเตือน
+                  การตั้งค่า
                 </h2>
               </div>
               <button

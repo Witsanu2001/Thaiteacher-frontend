@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookOpen, Menu, Moon, Sun, X } from "lucide-react";
+import { Menu, Moon, Sun, X } from "lucide-react";
 import { firstDayOfFiscalYear } from "../shared/funtion/fiscalYear";
 import NotificationBell from "./components/NotificationBell";
 import AiHeaderButton from "./components/AiHeaderButton";
@@ -101,15 +101,6 @@ export default function Header({
             <PageTitle active={active} />
           </div>
           <div className="ml-auto flex min-w-0 items-center gap-1 sm:gap-2">
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new Event("thaiteacher:start-tour"))}
-              aria-label="เริ่มสอนการใช้งาน"
-              title="สอนการใช้งาน"
-              className="grid size-10 shrink-0 place-items-center rounded-xl text-blue-600 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-slate-800"
-            >
-              <BookOpen size={20} />
-            </button>
             <span
               className="max-w-[38vw] truncate rounded-full border border-blue-100 bg-white/80 px-3 py-1.5 text-right text-sm font-semibold text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100 sm:max-w-[280px] sm:text-base lg:max-w-[200px] xl:max-w-[320px]"
               title={schoolName || ""}

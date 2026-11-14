@@ -16,6 +16,7 @@ import AdminClearPage from "../modules/admin-clear/AdminClearPage";
 import AdminSupportPage from "../modules/admin-support/AdminSupportPage";
 import AdminAnnouncementsPage from "../modules/admin-announcements/AdminAnnouncementsPage";
 import ContactPage from "../modules/contact/ContactPage";
+import ProfilePage from "../modules/profile/ProfilePage";
 import ChatGiminiAIPage from "../modules/gimini-ai/ChatGiminiAIPage";
 import AdminHeader from "../shared/components/AdminHeader";
 
@@ -108,6 +109,8 @@ function ReportForm() {
 
 export default function AppRoutes({
   user,
+  accountProfile,
+  onProfileSaved,
   isAdmin = false,
   aiAllowed = false,
   viewing,
@@ -123,6 +126,8 @@ export default function AppRoutes({
   onLogin,
 }: {
   user?: User;
+  accountProfile?: Pick<UserProfile, "displayName" | "email" | "phone" | "position" | "schoolName" | "role">;
+  onProfileSaved?: (profile: UserProfile) => void;
   isAdmin?: boolean;
   aiAllowed?: boolean;
   viewing?: UserProfile | null;
@@ -152,6 +157,10 @@ export default function AppRoutes({
             replace
           />
         }
+      />
+      <Route
+        path="/admin/profile"
+        element={isAdmin && user && accountProfile && onProfileSaved ? <div className="flex min-h-dvh flex-col"><AdminHeader title="โปรไฟล์บัญชี" onMenu={onMenu} dark={dark} onToggleDark={onToggleDark} /><ProfilePage user={user} profile={accountProfile} onSaved={onProfileSaved} /></div> : <Navigate to="/admin/dashboard" replace />}
       />
       <Route
         path="/admin/dashboard"
@@ -249,6 +258,7 @@ export default function AppRoutes({
         <Route path="exports" element={<Exports />} />
         <Route path="report-settings" element={<ReportForm />} />
         <Route path="contact" element={<ContactPage user={user} demo={demo} />} />
+        <Route path="profile" element={user && accountProfile && onProfileSaved ? <ProfilePage user={user} profile={accountProfile} onSaved={onProfileSaved} /> : <Navigate to="/finance/school-finance" replace />} />
         <Route path="guide" element={<Navigate to="/finance/school-finance?tour=1" replace />} />
         <Route path="gimini-ai" element={aiAllowed && user && !demo ? <ChatGiminiAIPage key={`${user.uid}:${viewing?.uid || "self"}`} storageKey={`${user.uid}:${viewing?.uid || "self"}`} getAccessToken={() => user.getIdToken()} viewAsUid={viewing?.uid} /> : <Navigate to="/finance/school-finance" replace />} />
       </Route>

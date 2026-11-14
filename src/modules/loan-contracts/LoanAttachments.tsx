@@ -68,7 +68,7 @@ export default function LoanAttachments({ front, back, pendingFront, pendingBack
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
   };
   return <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-6">
-    <div><h3 className="text-lg font-semibold">เอกสารแนบ</h3><p className="mt-1 text-sm text-slate-500">แนบภาพถ่ายหรือเอกสารประกอบสัญญา ไฟล์ละไม่เกิน 10 MB</p></div>
+    <div data-tour="loan-attachments"><h3 className="text-lg font-semibold">เอกสารแนบ</h3><p className="mt-1 text-sm text-slate-500">แนบภาพถ่ายหรือเอกสารประกอบสัญญา ไฟล์ละไม่เกิน 10 MB</p></div>
     <div className="grid gap-5 lg:grid-cols-2">
       <div className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
         <div><h4 className="font-semibold">ด้านหน้า</h4><p className="text-sm text-slate-500">แนบได้ 1 ไฟล์</p></div>

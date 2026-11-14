@@ -74,23 +74,32 @@ export default function GuidedTour({ accountKey, dark = false, autoStart = true,
   useEffect(() => {
     if (!open || !current) return;
     const modalStep = (location.pathname === "/finance/school-finance" && ["add-day", "balance-cell", "edit-form"].includes(current.target || "")) ||
-      (location.pathname === "/finance/projects" && ["เพิ่มโครงการหรือนำเข้า Excel", "กำหนดวงเงินรายกิจกรรม", "เพิ่มค่าใช้จ่ายกิจกรรม"].includes(current.title)) ||
       (location.pathname === "/finance/income-expense" && ["บันทึกรายรับ", "บันทึกรายจ่าย"].includes(current.title)) ||
       (location.pathname === "/finance/vouchers" && current.title === "เปิดดูหลักฐาน");
-    const targetName = location.pathname === "/finance/loan-contracts" && current.title !== "ตัวอย่างสัญญา" ? "tour-loan-form" : modalStep ? "tour-active-modal" : current.target;
+    const targetName = modalStep ? "tour-active-modal" : current.target;
     let target = visibleTarget(targetName) ?? visibleTarget(current.target) ?? visibleTarget("page-title");
     const update = () => {
       if (!target?.isConnected) { setBox(null); return; }
       const rect = target.getBoundingClientRect();
       setBox({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
     };
-    target?.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+    const alignTarget = () => {
+      if (modalStep || !target) return;
+      const rect = target.getBoundingClientRect();
+      const margin = rect.height > window.innerHeight * 0.55 ? 12 : Math.min(180, window.innerHeight * 0.22);
+      const previous = target.style.scrollMarginTop;
+      target.style.scrollMarginTop = `${margin}px`;
+      target.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+      target.style.scrollMarginTop = previous;
+    };
+    alignTarget();
     update();
     const settle = window.setTimeout(update, 400);
     const observer = new MutationObserver(() => {
       const preferred = visibleTarget(targetName);
       if (target?.isConnected && target === preferred) return;
       target = preferred ?? visibleTarget(current.target) ?? visibleTarget("page-title");
+      alignTarget();
       update();
     });
     observer.observe(document.body, { childList: true, subtree: true });
@@ -119,23 +128,40 @@ export default function GuidedTour({ accountKey, dark = false, autoStart = true,
   });
 
   if (!open || !page || !current) return null;
-  const width = Math.min(410, window.innerWidth - 24);
-  const height = Math.min(300, window.innerHeight - 24);
-  const showingModal = Boolean(visibleTarget("tour-active-modal") && box && box.width > 250 && box.height > 180);
-  const modalSide = showingModal && box
-    ? box.left + box.width + width + 16 <= window.innerWidth - 12 ? box.left + box.width + 16
-      : box.left - width - 16 >= 12 ? box.left - width - 16 : null
+  const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+  const width = Math.min(410, viewportWidth - 24);
+  const preferredHeight = Math.min(260, viewportHeight - 24);
+  // Use the real dialog bounds. The highlighted button may still be in state
+  // for one frame after the dialog opens, especially on iPad Safari.
+  const modalStep = (location.pathname === "/finance/school-finance" && ["add-day", "balance-cell", "edit-form"].includes(current.target || "")) ||
+    (location.pathname === "/finance/income-expense" && ["บันทึกรายรับ", "บันทึกรายจ่าย"].includes(current.title)) ||
+    (location.pathname === "/finance/vouchers" && current.title === "เปิดดูหลักฐาน");
+  const modalElement = modalStep ? visibleTarget("tour-active-modal") : null;
+  const modalRect = modalElement?.getBoundingClientRect();
+  const spotlight = modalRect
+    ? { top: modalRect.top, left: modalRect.left, width: modalRect.width, height: modalRect.height }
+    : box;
+  const side = spotlight
+    ? spotlight.left + spotlight.width + width + 16 <= viewportWidth - 12 ? spotlight.left + spotlight.width + 16
+      : spotlight.left - width - 16 >= 12 ? spotlight.left - width - 16 : null
     : null;
-  const left = modalSide ?? (box ? Math.max(12, Math.min(box.left + box.width / 2 - width / 2, window.innerWidth - width - 12)) : (window.innerWidth - width) / 2);
-  const top = modalSide !== null && box ? Math.max(12, Math.min(box.top + box.height / 2 - height / 2, window.innerHeight - height - 12))
-    : box && box.top + box.height + height + 14 < window.innerHeight ? box.top + box.height + 14
-    : box && box.top - height - 14 > 12 ? box.top - height - 14
-      : Math.max(12, (window.innerHeight - height) / 2);
+  const left = side ?? (spotlight ? Math.max(12, Math.min(spotlight.left + spotlight.width / 2 - width / 2, viewportWidth - width - 12)) : (viewportWidth - width) / 2);
+  const spaceAbove = spotlight ? Math.max(0, spotlight.top - 20) : 0;
+  const spaceBelow = spotlight ? Math.max(0, viewportHeight - spotlight.top - spotlight.height - 20) : 0;
+  const placeAbove = spotlight && side === null && spaceAbove >= spaceBelow;
+  const availableHeight = side !== null ? viewportHeight - 24 : Math.max(spaceAbove, spaceBelow);
+  const coachHeight = Math.min(preferredHeight, Math.max(120, availableHeight));
+  const top = side !== null && spotlight
+    ? Math.max(12, Math.min(spotlight.top + spotlight.height / 2 - coachHeight / 2, viewportHeight - coachHeight - 12))
+    : spotlight && placeAbove ? Math.max(12, spotlight.top - coachHeight - 10)
+      : spotlight ? Math.min(viewportHeight - coachHeight - 12, spotlight.top + spotlight.height + 10)
+        : Math.max(12, (viewportHeight - coachHeight) / 2);
   return createPortal(
-    <div className={`fixed inset-0 z-[120] text-slate-900 ${dark ? "dark" : ""}`} role="presentation">
-      {!box && <div className="absolute inset-0 bg-slate-950/70" />}
-      {box && <div aria-hidden="true" className="pointer-events-none fixed rounded-xl border-2 border-sky-400" style={{ top: Math.max(2, box.top - 5), left: Math.max(2, box.left - 5), width: box.width + 10, height: box.height + 10, boxShadow: "0 0 0 9999px rgba(2, 6, 23, 0.72), 0 0 0 4px rgba(56, 189, 248, 0.28)" }} />}
-      <section role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-description" className="fixed z-[2] flex flex-col overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-white" style={{ top, left, width, maxHeight: "calc(100dvh - 24px)" }}>
+    <div className={`pointer-events-none fixed inset-0 z-[120] text-slate-900 ${dark ? "dark" : ""}`} role="presentation">
+      {!spotlight && <div className="absolute inset-0 bg-slate-950/70" />}
+      {spotlight && <div aria-hidden="true" className="pointer-events-none fixed rounded-xl border-2 border-sky-400" style={{ top: Math.max(2, spotlight.top - 5), left: Math.max(2, spotlight.left - 5), width: spotlight.width + 10, height: spotlight.height + 10, boxShadow: "0 0 0 9999px rgba(2, 6, 23, 0.72), 0 0 0 4px rgba(56, 189, 248, 0.28)" }} />}
+      <section role="dialog" aria-modal="false" aria-labelledby="tour-title" aria-describedby="tour-description" className="pointer-events-auto fixed z-[2] flex flex-col overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-white" style={{ top, left, width, maxHeight: coachHeight }}>
         <div className="min-h-0 overflow-y-auto p-5">
           <div className="flex items-center justify-between gap-3"><span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 dark:text-blue-300"><BookOpen size={15} />{page.name} · {index + 1}/{page.steps.length}</span><button type="button" onClick={finish} aria-label="ปิดคำแนะนำ" className="rounded-lg p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><X size={19} /></button></div>
           <div className="mt-3 flex gap-1" aria-hidden="true">{page.steps.map((_, stepIndex) => <span key={stepIndex} className={`h-1.5 flex-1 rounded-full ${stepIndex <= index ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-700"}`} />)}</div>

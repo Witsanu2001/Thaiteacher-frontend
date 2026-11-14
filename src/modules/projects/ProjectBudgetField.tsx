@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { formatMoneyInput, parseMoneyInput } from "./moneyFormat";
 
-export default function ProjectBudgetField({ value, onChange, className, label }: {
+export default function ProjectBudgetField({ value, onChange, className, label, tourId }: {
   value: number;
   onChange: (value: number) => void;
   className: string;
   label: string;
+  tourId?: string;
 }) {
   const [text, setText] = useState(() => formatMoneyInput(String(value)));
   return <input
+    data-tour={tourId}
     aria-label={label}
     type="text"
     inputMode="decimal"

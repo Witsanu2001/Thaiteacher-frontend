@@ -149,6 +149,7 @@ export default function AuthGate({
     accessState: "trial" | "paid" | "lifetime" | "expired",
     onSignOut: () => void,
     user: User,
+    onProfileSaved: (profile: UserProfile) => void,
   ) => ReactNode;
 }) {
   const [user, setUser] = useState<User | null>(null);
@@ -776,6 +777,7 @@ export default function AuthGate({
           void signOut(auth);
         },
         user,
+        (value) => setProfile(toProfile(value)),
       )}
     </>
   );

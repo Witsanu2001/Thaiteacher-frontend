@@ -2,6 +2,7 @@ export type MenuItem = {
   label: string;
   path: string;
   role: "teacher" | "superAdmin";
+  hidden?: boolean;
 };
 
 export const menuConfig: MenuItem[] = [
@@ -36,6 +37,8 @@ export const menuConfig: MenuItem[] = [
     role: "teacher",
   },
   { label: "ติดต่อเรา", path: "/finance/contact", role: "teacher" },
+  { label: "โปรไฟล์บัญชี", path: "/finance/profile", role: "teacher", hidden: true },
+  { label: "โปรไฟล์บัญชี", path: "/admin/profile", role: "superAdmin", hidden: true },
   { label: "ผู้ช่วย AI", path: "/finance/gimini-ai", role: "teacher" },
 ];
 

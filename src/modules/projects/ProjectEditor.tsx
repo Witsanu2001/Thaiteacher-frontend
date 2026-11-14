@@ -20,6 +20,7 @@ export default function ProjectEditor({
   demo,
   saving,
   isEditing,
+  tutorialPreview = false,
 }: {
   draft: SchoolProject;
   categories: string[];
@@ -30,6 +31,7 @@ export default function ProjectEditor({
   demo: boolean;
   saving: boolean;
   isEditing: boolean;
+  tutorialPreview?: boolean;
 }) {
   const updateActivity = (
     activityId: string,
@@ -67,7 +69,7 @@ export default function ProjectEditor({
           </button>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <label className="sm:col-span-2">
+          <label data-tour="project-name" className="sm:col-span-2">
             ชื่อโครงการ
             <input
               value={draft.name}
@@ -188,7 +190,7 @@ export default function ProjectEditor({
                   ต้องมีรายงานเงินคงเหลือประจำวันก่อนเลือกประเภทเงิน
                 </p>
               )}
-              {activity.allocations.map((allocation) => (
+              {activity.allocations.map((allocation, allocationIndex) => (
                 <div
                   key={allocation.id}
                   className="mt-2 grid gap-2 rounded-xl bg-slate-50 p-2 dark:bg-slate-800 sm:grid-cols-[1fr_9rem_auto]"
@@ -215,6 +217,7 @@ export default function ProjectEditor({
                   {allocation.sourceLabel && <p className="text-xs text-slate-500 sm:col-span-3">จาก Excel: {allocation.sourceLabel} · เลือกประเภทเงินในรายงานก่อนบันทึกค่าใช้จ่าย</p>}
                   <ProjectBudgetField
                     label="วงเงินของกิจกรรม"
+                    tourId={index === 0 && allocationIndex === 0 ? "project-activity-budget" : undefined}
                     value={allocation.budget}
                     onChange={(value) =>
                       updateActivity(activity.id, {
@@ -261,10 +264,10 @@ export default function ProjectEditor({
           <button
             type="button"
             onClick={onSave}
-            disabled={saving}
+            disabled={saving || tutorialPreview}
             className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white"
           >
-            {saving ? "กำลังบันทึก..." : isEditing ? "บันทึกการแก้ไข" : demo ? "เพิ่มในตัวอย่าง" : "บันทึกโครงการ"}
+            {tutorialPreview ? "ตัวอย่าง ไม่บันทึก" : saving ? "กำลังบันทึก..." : isEditing ? "บันทึกการแก้ไข" : demo ? "เพิ่มในตัวอย่าง" : "บันทึกโครงการ"}
           </button>
         </div>
       </section>

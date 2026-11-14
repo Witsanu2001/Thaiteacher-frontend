@@ -15,7 +15,7 @@ export default function LoanRepayments({ contract, onChange, savedCount, availab
   const repayments = contract.repayments || [];
   const patch = (id: string, name: keyof LoanRepayment, value: string) => onChange(repayments.map((item) => item.id === id ? { ...item, [name]: value } : item));
   return <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-6">
-    <div className="flex flex-wrap items-start justify-between gap-3">
+    <div data-tour="loan-repayments" className="flex flex-wrap items-start justify-between gap-3">
       <div><h3 className="text-lg font-semibold">รายการส่งใช้เงินยืม</h3><p className="mt-1 text-sm text-slate-500">เมื่อบันทึก จะเพิ่มเป็นรายรับในทะเบียนและรายงานเงินคงเหลือของวันที่ส่งใช้</p></div>
       <button type="button" disabled={repayments.length >= 19} onClick={() => onChange([...repayments, emptyRepayment()])} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:border-blue-900 dark:text-blue-300"><Plus size={16}/> เพิ่มรายการ</button>
     </div>

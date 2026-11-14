@@ -5,7 +5,7 @@ import { loadCashbookEntries } from "../../config/services/cashbook.service";
 import { loanLedgerEntries } from "../loan-contracts/loanLedger";
 import type { LoanContract } from "../loan-contracts/loanContract";
 import { scopedStorage } from "../../shared/funtion/scopedStorage";
-import { ArrowRight, Search } from "lucide-react";
+import { ArrowRight, BookOpen, Search } from "lucide-react";
 import { thaiDate } from "../../shared/funtion/thaiDate";
 import {
   currentFiscalYear,
@@ -86,7 +86,10 @@ export default function MoneyRegisterPage({
   const [opening] = useState<Record<string, number>>(() =>
     readJson<Record<string, number>>(`school-cashbook:${school}:opening`, {}),
   );
-  const report = ordered.find((day) => day.date === selectedDate) || latest;
+  const effectiveDate = ordered.some((day) => day.date === selectedDate)
+    ? selectedDate
+    : latest?.date || "";
+  const report = ordered.find((day) => day.date === effectiveDate);
   const names = [
     ...new Set(
       ordered.flatMap((day) =>
@@ -97,15 +100,25 @@ export default function MoneyRegisterPage({
   const categories = names.filter((name) =>
     name.toLowerCase().includes(query.toLowerCase()),
   );
-  const active =
-    selected && names.includes(selected) ? selected : names[0] || "";
+  const active = selected && names.includes(selected) ? selected : "";
+  useEffect(() => {
+    const showDetail = (event: Event) => {
+      const detail = (event as CustomEvent<{ path: string; target?: string }>).detail;
+      if (detail?.path !== "/finance/money-register" || detail.target !== "register-detail") return;
+      const first = ordered.flatMap((day) => day.rows).find((row) => !row.group)?.name;
+      if (first) setSelected(first);
+    };
+    window.addEventListener("thaiteacher:tour-step", showDetail);
+    return () => window.removeEventListener("thaiteacher:tour-step", showDetail);
+  }, [ordered]);
   const current = report?.rows.find((row) => row.name === active && !row.group);
   const amount = (row?: ReportRow) =>
     row ? row.cash + row.bank + row.government : 0;
   const categoryEntries = [...entries, ...loanEntries]
     .filter(
       (entry) =>
-        entry.category === active && fiscalYearOf(entry.date) === fiscalYear,
+        entry.category === active && fiscalYearOf(entry.date) === fiscalYear &&
+        (!report || entry.date <= report.date),
     )
     .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   const openingKey = `${fiscalYear}:${active}`;
@@ -141,7 +154,7 @@ export default function MoneyRegisterPage({
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2">
-            <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <article className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-5 shadow-sm dark:border-blue-900 dark:from-blue-950/50 dark:to-slate-900">
               <p className="text-sm text-slate-500">ประเภทเงินที่ติดตาม</p>
               <p className="mt-2 text-3xl font-bold text-blue-700 dark:text-blue-300">
                 <AnimatedNumber value={names.length} />{" "}
@@ -149,25 +162,25 @@ export default function MoneyRegisterPage({
               </p>
             </article>
             <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-sm text-slate-500">ยอดรวมตามรายงาน</p>
+              <p className="text-sm text-slate-500">ยอดคงเหลือรวม ณ {thaiDate(report.date)}</p>
               <p className="mt-2 break-all text-2xl font-bold tabular-nums text-slate-900 dark:text-white">
                 ฿ <AnimatedNumber value={total} format={money} />
               </p>
             </article>
           </div>
-          <section data-tour="register-categories" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4 dark:border-slate-800 sm:p-5">
-              <div>
-                <h3 className="font-semibold">ยอดคงเหลือแยกประเภทเงิน</h3>
+              <div data-tour="register-summary">
+                <h3 className="text-lg font-semibold">ยอดคงเหลือแยกประเภทเงิน</h3>
                 <p className="mt-1 text-xs text-slate-500">
-                  เลือกประเภทเพื่อดูทะเบียนรายการด้านล่าง
+                  เลือกประเภทเงินเพื่อเปิดทะเบียน · ยอดและรายการอ้างอิงถึงวันที่เลือก
                 </p>
               </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end">
-                <label className="grid gap-1 text-xs font-medium text-slate-500">
+                <label data-tour="register-date" className="grid gap-1 text-xs font-medium text-slate-500">
                   ยอด ณ วันที่
                   <select
-                    value={selectedDate}
+                    value={effectiveDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
                     className="min-w-44 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   >
@@ -178,7 +191,7 @@ export default function MoneyRegisterPage({
                     ))}
                   </select>
                 </label>
-                <label className="relative w-full sm:w-56">
+                <label data-tour="register-search" className="relative w-full sm:w-56">
                   <Search
                     size={17}
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -206,13 +219,14 @@ export default function MoneyRegisterPage({
                   <button
                     key={name}
                     onClick={() => showRegister(name)}
+                    data-tour={name === categories[0] ? "register-open" : undefined}
                     className={`flex w-full items-center justify-between gap-3 p-4 text-left ${name === active ? "bg-blue-50 dark:bg-blue-950/40" : ""}`}
                   >
                     <span className="min-w-0">
                       <strong className="block truncate text-sm">{name}</strong>
                       <span className="mt-1 block text-xs text-slate-500">
                         เงินสด {money(row?.cash || 0)} · ธนาคาร{" "}
-                        {money(row?.bank || 0)}
+                        {money(row?.bank || 0)} · ส่วนราชการ {money(row?.government || 0)}
                       </span>
                     </span>
                     <span className="shrink-0 text-right">
@@ -289,6 +303,7 @@ export default function MoneyRegisterPage({
                         <td className="px-3 py-3 text-right">
                           <button
                             onClick={() => showRegister(name)}
+                            data-tour={name === categories[0] ? "register-open" : undefined}
                             aria-label={`ดูทะเบียน ${name}`}
                             className="inline-flex items-center gap-1 rounded-lg px-2 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:text-blue-300"
                           >
@@ -308,13 +323,19 @@ export default function MoneyRegisterPage({
               )}
             </div>
           </section>
+          {!active && (
+            <div className="flex items-center gap-3 rounded-2xl border border-dashed border-blue-200 bg-blue-50/60 p-5 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+              <BookOpen size={20} className="shrink-0" />
+              เลือกประเภทเงินจากตารางด้านบน เพื่อดูรายการรับ–จ่ายและยอดคงเหลือในทะเบียน
+            </div>
+          )}
           {active && (
             <section
               ref={detailRef}
-              className="scroll-mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
+              className="scroll-mt-24 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
             >
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-5 dark:border-slate-800">
-                <div>
+                <div data-tour="register-detail">
                   <p className="text-xs font-bold text-blue-700 dark:text-blue-300">
                     ทะเบียนรายการ
                   </p>

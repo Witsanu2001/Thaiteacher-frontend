@@ -122,7 +122,11 @@ export default function ProjectWorkspacePage() {
     { id: "tour-internet", name: "ค่าอินเทอร์เน็ต", allocations: [{ id: "tour-allocation", category: "เงินอุดหนุนค่าใช้จ่ายรายหัว", budget: 15000 }] },
     { id: "tour-equipment", name: "อุปกรณ์การเรียน", allocations: [{ id: "tour-equipment-allocation", category: "เงินอุดหนุนค่าใช้จ่ายรายหัว", budget: 5000 }] },
   ] };
-  const displayProjects = (tourActive || demo) && projects.length === 0 ? [tourProject] : projects;
+  const tourExpense: PreviewExpense = { id: `${projectExpenseId("tour-project", "tour-internet")}preview`, activityId: "tour-internet", allocationId: "tour-allocation", date: todayIso(), category: "เงินอุดหนุนค่าใช้จ่ายรายหัว", account: "bank", description: "ค่าอินเทอร์เน็ต", amount: 1200, documentNo: "ตัวอย่าง", note: "" };
+  const displayProjects = tourActive ? [tourProject, ...projects]
+    : demo && projects.length === 0 ? [tourProject] : projects;
+  const viewExpenses = tourActive ? [tourExpense, ...expenses]
+    : demo && projects.length === 0 && expenses.length === 0 ? [tourExpense] : expenses;
   const selected = displayProjects.find((project) => project.id === selectedId && project.fiscalYear === fiscalYear);
   const firstFundedActivity = selected?.activities.find(
     (activity) => activity.allocations.length,
@@ -149,9 +153,11 @@ export default function ProjectWorkspacePage() {
   ];
   const expenseFor = (projectId: string) =>
     expenses.filter((entry) => entry.id.startsWith(`pexp_${projectId}_`));
+  const viewExpenseFor = (projectId: string) =>
+    viewExpenses.filter((entry) => entry.id.startsWith(`pexp_${projectId}_`));
   const spent = (projectId: string) =>
-    expenseFor(projectId).reduce((sum, entry) => sum + entry.amount, 0);
-  const yearExpenses = expenses.filter((entry) => yearProjects.some((project) => entry.id.startsWith(`pexp_${project.id}_`)));
+    viewExpenseFor(projectId).reduce((sum, entry) => sum + entry.amount, 0);
+  const yearExpenses = viewExpenses.filter((entry) => yearProjects.some((project) => entry.id.startsWith(`pexp_${project.id}_`)));
   const plannedTotal = yearProjects.reduce((sum, project) => sum + projectBudget(project), 0);
   const spentTotal = yearExpenses.reduce((sum, entry) => sum + entry.amount, 0);
   const spentByCategory = Object.entries(yearExpenses.reduce<Record<string, number>>((totals, entry) => {
@@ -206,7 +212,13 @@ export default function ProjectWorkspacePage() {
       if (detail?.path !== "/finance/projects") return;
       setDraft(null);
       setExpenseDraft(null);
+      if (["ดูวงเงินรวม", "ค้นหาโครงการ", "เปิดรายละเอียดโครงการ"].includes(detail.title)) {
+        setSelectedId("");
+        setDepartment("ทั้งหมด");
+        setQuery("");
+      }
       if (detail.title === "เพิ่มโครงการหรือนำเข้า Excel" || detail.title === "กำหนดวงเงินรายกิจกรรม") openEditor(tourProject);
+      if (detail.title === "ดูกิจกรรมและแหล่งเงิน" || detail.title === "ตรวจรายการค่าใช้จ่าย") setSelectedId(tourProject.id);
       if (detail.title === "เพิ่มค่าใช้จ่ายกิจกรรม") {
         setSelectedId(tourProject.id);
         setExpenseDraft({ activityId: "tour-internet", allocationId: "tour-allocation", date: todayIso(), category: "เงินอุดหนุนค่าใช้จ่ายรายหัว", account: "bank", description: "ค่าอินเทอร์เน็ต", amount: "1,200.00", documentNo: "" });
@@ -570,7 +582,7 @@ export default function ProjectWorkspacePage() {
           <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)]">
             <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-center justify-between">
-                <h4 className="font-bold">กิจกรรมและแหล่งเงิน</h4>
+                <h4 data-tour="project-activities" className="font-bold">กิจกรรมและแหล่งเงิน</h4>
                 <button
                   type="button"
                   onClick={() => openEditor(selected)}
@@ -586,7 +598,7 @@ export default function ProjectWorkspacePage() {
                       key={activity.id}
                       activity={activity}
                       spentForSource={(category) =>
-                        expenseFor(selected.id)
+                        viewExpenseFor(selected.id)
                           .filter(
                             (entry) =>
                               entry.id.startsWith(
@@ -605,7 +617,7 @@ export default function ProjectWorkspacePage() {
             <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h4 className="font-bold">ค่าใช้จ่ายรายกิจกรรม</h4>
+                  <h4 data-tour="project-expense-list" className="font-bold">ค่าใช้จ่ายรายกิจกรรม</h4>
                   <p className="text-sm text-slate-500">บันทึกแล้วเชื่อมทะเบียนรายจ่ายและรายงานเงินคงเหลือประจำวัน</p>
                 </div>
                 <button
@@ -635,8 +647,8 @@ export default function ProjectWorkspacePage() {
                   เพิ่มค่าใช้จ่าย
                 </button>
               </div>
-              {expenseFor(selected.id).length ? (
-                expenseFor(selected.id).map((entry) => (
+              {viewExpenseFor(selected.id).length ? (
+                viewExpenseFor(selected.id).map((entry) => (
                   <div
                     key={entry.id}
                     className="mt-3 rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-700"
@@ -665,8 +677,8 @@ export default function ProjectWorkspacePage() {
                     <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 dark:border-slate-700">
                       {entry.attachment && <button type="button" onClick={() => void openExpenseAttachment(entry)} className="inline-flex min-w-0 items-center gap-1 text-xs font-semibold text-blue-600"><Paperclip size={14}/><span className="max-w-44 truncate">{entry.attachment.name}</span></button>}
                       <div className="ml-auto flex gap-2">
-                        <button type="button" onClick={() => { setEditingExpenseId(entry.id); setExpenseDraft({ activityId: entry.activityId, allocationId: entry.allocationId, date: entry.date, category: entry.category, account: entry.account || "", description: entry.description, amount: money(entry.amount), documentNo: entry.documentNo, attachment: entry.attachment }); setError(""); }} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-blue-600 dark:border-slate-700"><Pencil size={14}/>แก้ไข</button>
-                        <button type="button" disabled={saving} onClick={() => void removeExpense(entry)} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-600 disabled:opacity-40 dark:border-rose-900"><Trash2 size={14}/>ลบ</button>
+                        <button type="button" disabled={entry.id.endsWith("_preview")} onClick={() => { setEditingExpenseId(entry.id); setExpenseDraft({ activityId: entry.activityId, allocationId: entry.allocationId, date: entry.date, category: entry.category, account: entry.account || "", description: entry.description, amount: money(entry.amount), documentNo: entry.documentNo, attachment: entry.attachment }); setError(""); }} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-blue-600 disabled:opacity-40 dark:border-slate-700"><Pencil size={14}/>แก้ไข</button>
+                        <button type="button" disabled={saving || entry.id.endsWith("_preview")} onClick={() => void removeExpense(entry)} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-600 disabled:opacity-40 dark:border-rose-900"><Trash2 size={14}/>ลบ</button>
                       </div>
                     </div>
                   </div>
@@ -689,8 +701,8 @@ export default function ProjectWorkspacePage() {
               <button type="button" data-tour="project-create" onClick={() => openEditor()} className={`${button} bg-blue-600 text-white`}><Plus size={17}/>เพิ่มโครงการ</button>
             </div>
           </div>
-          <section data-tour="project-summary" aria-label="สรุปงบโครงการ" className="grid gap-3 sm:grid-cols-3">
-            {[["วงเงินตามแผน", plannedTotal, "border-blue-500 dark:border-t-blue-500", "text-blue-600 dark:text-blue-300"], ["ใช้จ่ายแล้ว", spentTotal, "border-rose-400 dark:border-t-rose-400", "text-rose-600 dark:text-rose-300"], ["คงเหลือตามแผน", plannedTotal - spentTotal, "border-emerald-400 dark:border-t-emerald-400", "text-emerald-700 dark:text-emerald-300"]].map(([label, value, border, color]) => <div key={label} className={`min-w-0 rounded-2xl border border-slate-200 border-t-4 ${border} bg-white p-4 dark:border-slate-800 dark:bg-slate-900`}><p className="text-sm text-slate-500">{label}</p><p className={`mt-2 text-xl font-bold tabular-nums sm:text-2xl ${color}`}>{money(Number(value))} <span className="text-sm font-medium">บาท</span></p></div>)}
+          <section aria-label="สรุปงบโครงการ" className="grid gap-3 sm:grid-cols-3">
+            {[["วงเงินตามแผน", plannedTotal, "border-blue-500 dark:border-t-blue-500", "text-blue-600 dark:text-blue-300"], ["ใช้จ่ายแล้ว", spentTotal, "border-rose-400 dark:border-t-rose-400", "text-rose-600 dark:text-rose-300"], ["คงเหลือตามแผน", plannedTotal - spentTotal, "border-emerald-400 dark:border-t-emerald-400", "text-emerald-700 dark:text-emerald-300"]].map(([label, value, border, color], index) => <div key={label} data-tour={index === 0 ? "project-summary" : undefined} className={`min-w-0 rounded-2xl border border-slate-200 border-t-4 ${border} bg-white p-4 dark:border-slate-800 dark:bg-slate-900`}><p className="text-sm text-slate-500">{label}</p><p className={`mt-2 text-xl font-bold tabular-nums sm:text-2xl ${color}`}>{money(Number(value))} <span className="text-sm font-medium">บาท</span></p></div>)}
           </section>
           <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
             <div className="flex flex-wrap items-center justify-between gap-1"><h3 className="font-bold">ใช้จ่ายจากประเภทเงิน</h3><span className="text-xs text-slate-500">รวมจากรายการค่าใช้จ่ายของทุกโครงการ</span></div>
@@ -698,6 +710,7 @@ export default function ProjectWorkspacePage() {
           </section>
           <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 md:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]">
             <select
+              data-tour="project-filter"
               aria-label="เลือกฝ่าย"
               value={department}
               onChange={(event) => setDepartment(event.target.value)}
@@ -715,9 +728,10 @@ export default function ProjectWorkspacePage() {
               visible.map((project) => (
                 <button
                   key={project.id}
+                  data-tour={project.id === visible[0]?.id ? "project-open" : undefined}
                   type="button"
                   onClick={() => setSelectedId(project.id)}
-                  className="grid w-full gap-2 border-b border-slate-100 p-4 text-left hover:bg-blue-50 dark:border-slate-800 dark:hover:bg-blue-950/30 sm:grid-cols-[1fr_8rem_9rem]"
+                  className="grid w-full gap-2 border-b border-slate-100 p-4 text-left hover:bg-blue-50 dark:border-slate-800 dark:hover:bg-blue-950/30 lg:grid-cols-[minmax(0,1fr)_7rem_16rem] lg:items-center"
                 >
                   <div>
                     <p className="font-semibold">{project.name}</p>
@@ -729,9 +743,10 @@ export default function ProjectWorkspacePage() {
                   <span className="text-sm text-slate-500">
                     {project.activities.length} กิจกรรม
                   </span>
-                  <strong className="tabular-nums text-blue-700 dark:text-blue-300 sm:text-right">
-                    {money(projectBudget(project))} บาท
-                  </strong>
+                  <span className="lg:text-right">
+                    <strong className="block tabular-nums text-blue-700 dark:text-blue-300">วงเงิน {money(projectBudget(project))} บาท</strong>
+                    <small className="mt-1 block text-slate-500">ใช้แล้ว {money(spent(project.id))} · คงเหลือ {money(projectBudget(project) - spent(project.id))} บาท</small>
+                  </span>
                 </button>
               ))
             ) : (
@@ -753,6 +768,7 @@ export default function ProjectWorkspacePage() {
           onSave={saveDraft}
           demo={demo}
           saving={saving}
+          tutorialPreview={tourActive && draft.id === "tour-project"}
           isEditing={projects.some((item) => item.id === draft.id)}
           hasExpense={(activityId) =>
             expenses.some((entry) =>
@@ -861,7 +877,7 @@ export default function ProjectWorkspacePage() {
                   }
                 />
               </label>
-              <label className="block min-w-0">
+              <label data-tour="project-expense-amount" className="block min-w-0">
                 จำนวนเงิน
                 <input
                   type="text"
@@ -997,9 +1013,10 @@ export default function ProjectWorkspacePage() {
               <button
                 type="button"
                 onClick={() => void saveExpense()}
+                disabled={saving || (tourActive && selected.id === "tour-project")}
                 className={`${button} bg-blue-600 text-white disabled:opacity-40`}
               >
-                {saving ? "กำลังบันทึก..." : editingExpenseId ? "บันทึกการแก้ไข" : demo ? "เพิ่มในตัวอย่าง" : "บันทึกค่าใช้จ่าย"}
+                {tourActive && selected.id === "tour-project" ? "ตัวอย่าง ไม่บันทึก" : saving ? "กำลังบันทึก..." : editingExpenseId ? "บันทึกการแก้ไข" : demo ? "เพิ่มในตัวอย่าง" : "บันทึกค่าใช้จ่าย"}
               </button>
             </div>
           </section>

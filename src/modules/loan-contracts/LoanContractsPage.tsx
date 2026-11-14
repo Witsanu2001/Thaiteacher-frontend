@@ -591,7 +591,7 @@ export default function LoanContractsPage({
       if (detail.title === "ตัวอย่างสัญญา") { setView("list"); return; }
       setDraft({ ...tourContract, approvedAt: detail.title === "รายการส่งใช้เงินยืม" ? new Date().toISOString() : undefined });
       setView("form");
-      setSection(detail.title === "รายการส่งใช้เงินยืม" ? "repayment" : detail.title === "แนบเอกสารและตรวจแบบฟอร์ม" ? "attachments" : "contract");
+      setSection(detail.title === "รายการส่งใช้เงินยืม" ? "repayment" : detail.title === "แนบเอกสาร" ? "attachments" : "contract");
       setDirty(false);
     };
     window.addEventListener("thaiteacher:tour-step", showStep);
@@ -721,7 +721,7 @@ export default function LoanContractsPage({
       />
     );
   return (
-    <div data-tour="tour-loan-form" className="space-y-5 pb-8">
+    <div className={`space-y-5 ${tourActive ? "pb-64" : "pb-8"}`}>
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900 sm:p-3">
         <div className="flex items-center gap-3">
           <button
@@ -740,8 +740,9 @@ export default function LoanContractsPage({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
+            data-tour="loan-save"
             onClick={save}
-            disabled={saving}
+            disabled={saving || (tourActive && draft.id === "tour-loan")}
             className={`${button} bg-blue-700 text-white`}
           >
             <Save size={17} /> {saving ? "กำลังบันทึก..." : "บันทึก"}
@@ -839,12 +840,14 @@ export default function LoanContractsPage({
                   </p>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <TextField
-                    title="เลขที่สัญญา"
-                    value={draft.number}
-                    onChange={(value) => update("number", value)}
-                    placeholder="เช่น 1/2570"
-                  />
+                  <div data-tour="loan-contract-number">
+                    <TextField
+                      title="เลขที่สัญญา"
+                      value={draft.number}
+                      onChange={(value) => update("number", value)}
+                      placeholder="เช่น 1/2570"
+                    />
+                  </div>
                   <DateField
                     title="วันทำสัญญา"
                     value={draft.loanDate}

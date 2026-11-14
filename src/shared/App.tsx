@@ -22,7 +22,7 @@ import {
 } from "./menu";
 import { useRouteReveal } from "./funtion/useRouteReveal";
 
-type AppProfile = Pick<UserProfile, "displayName" | "schoolName" | "schoolId" | "dataVersion" | "role">;
+type AppProfile = Pick<UserProfile, "displayName" | "email" | "phone" | "position" | "schoolName" | "schoolId" | "dataVersion" | "role">;
 type AccessState = "trial" | "paid" | "lifetime" | "expired";
 
 function AppContent({
@@ -31,12 +31,14 @@ function AppContent({
   accessLabel,
   accessState,
   onSignOut,
+  onProfileSaved,
 }: {
   profile: AppProfile;
   user: User;
   accessLabel: string;
   accessState: AccessState;
   onSignOut: () => void;
+  onProfileSaved: (profile: UserProfile) => void;
 }) {
   const isAdmin = profile.role === "supperAdmin";
   const location = useLocation();
@@ -72,7 +74,7 @@ function AppContent({
     setViewError("");
   }, []);
   const navigate = useCallback((page: string, incomeExpenseCategory?: string) => {
-    if (page === "Dashboard" || page === "ผู้ใช้งาน" || page === "เคลียร์ข้อมูลผู้ใช้") stopViewing();
+    if (page === "Dashboard" || page === "ผู้ใช้งาน" || page === "เคลียร์ข้อมูลผู้ใช้" || (page === "โปรไฟล์บัญชี" && isAdmin)) stopViewing();
     const role =
       isAdmin &&
       menuConfig.some(
@@ -141,6 +143,8 @@ function AppContent({
               viewing={viewing}
               profileSchoolName={profile.schoolName}
               user={user}
+              accountProfile={profile}
+              onProfileSaved={onProfileSaved}
               onMenu={() => setMobileOpen(true)}
               dark={dark}
               onToggleDark={() => setDark((value) => !value)}
@@ -159,7 +163,7 @@ function AppContent({
 export default function App() {
   return (
     <AuthGate>
-      {(profile, accessLabel, accessState, onSignOut, user) => (
+      {(profile, accessLabel, accessState, onSignOut, user, onProfileSaved) => (
         <AppContent
           key={`${user.uid}:${profile.role}:${profile.schoolId || user.uid}:${profile.dataVersion || 0}`}
           profile={profile}
@@ -167,6 +171,7 @@ export default function App() {
           accessLabel={accessLabel}
           accessState={accessState}
           onSignOut={onSignOut}
+          onProfileSaved={onProfileSaved}
         />
       )}
     </AuthGate>

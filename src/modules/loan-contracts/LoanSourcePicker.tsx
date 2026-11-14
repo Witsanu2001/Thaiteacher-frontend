@@ -27,7 +27,7 @@ export default function LoanSourcePicker({ contract, reports, onChange }: {
   const total = loanTotal(contract);
 
   if (!available.length) return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+    <div data-tour="loan-source" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
       ยังไม่มีรายงานเงินคงเหลือก่อนหรือในวันทำสัญญา กรุณาบันทึกรายงานรายวันก่อนเลือกแหล่งเงิน
     </div>
   );
@@ -38,7 +38,7 @@ export default function LoanSourcePicker({ contract, reports, onChange }: {
       <div className="grid gap-1.5 text-sm font-medium"><span>วันที่รายงาน</span>
         <ThaiDatePicker value={reportDate} availableDates={available.map((item) => item.date)} onChange={(date) => onChange({ sourceReportDate: date, sourceCategory: "", sourceRowIndex: undefined, sourceAccount: undefined, borrowFrom: "" })} />
       </div>
-      <label className="grid gap-1.5 text-sm font-medium">ประเภทเงิน
+      <label data-tour="loan-source" className="grid gap-1.5 text-sm font-medium">ประเภทเงิน
         <select className={input} value={selected?.index ?? ""} onChange={(event) => {
           const item = event.target.value === "" ? undefined : rows.find(({ index }) => index === Number(event.target.value));
           onChange({ sourceReportDate: reportDate, sourceCategory: item?.row.name || "", sourceRowIndex: item?.index, sourceAccount: undefined, borrowFrom: "" });

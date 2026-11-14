@@ -1159,13 +1159,13 @@ export default function SchoolFinancePage({
         />
       )}
       {cellEdit && (
-        <div className="fixed inset-0 z-[60] grid place-items-center bg-slate-950/60 p-4">
+        <div className={`fixed inset-0 z-[60] bg-slate-950/60 p-4 ${tourActive ? "flex items-end justify-center" : "grid place-items-center"}`}>
           <section
             data-tour="tour-active-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="cell-title"
-            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-900"
+            className={`w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-900 ${tourActive ? "max-h-[calc(100dvh-300px)] overflow-y-auto" : ""}`}
           >
             <h2 id="cell-title" className="text-lg font-semibold">
               {rows[cellEdit.index].name}
@@ -1306,7 +1306,7 @@ export default function SchoolFinancePage({
       )}
       {carryOpen && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4"
+          className={`fixed inset-0 z-50 bg-slate-950/60 p-4 ${tourActive ? "flex items-end justify-center" : "grid place-items-center"}`}
           role="presentation"
         >
           <section
@@ -1314,7 +1314,7 @@ export default function SchoolFinancePage({
             role="dialog"
             aria-modal="true"
             aria-labelledby="carry-title"
-            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900"
+            className={`w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900 ${tourActive ? "max-h-[calc(100dvh-300px)] overflow-y-auto" : ""}`}
           >
             <h2 id="carry-title" className="text-xl font-semibold">
               เพิ่มวันใหม่
@@ -1387,14 +1387,14 @@ export default function SchoolFinancePage({
         </div>
       )}
       {open && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-3 backdrop-blur-sm">
+        <div className={`fixed inset-0 z-50 bg-slate-950/70 p-3 backdrop-blur-sm ${tourActive ? "flex items-end justify-center" : "grid place-items-center"}`}>
           <form
             data-tour="tour-active-modal"
             onSubmit={(e) => {
               e.preventDefault();
               save();
             }}
-            className="flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-900"
+            className={`flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-900 ${tourActive ? "max-h-[calc(100dvh-300px)]" : "max-h-[92dvh]"}`}
           >
             <header className="flex shrink-0 items-center justify-between border-b border-slate-200 p-5 dark:border-slate-700">
               <h2 className="text-lg font-semibold">

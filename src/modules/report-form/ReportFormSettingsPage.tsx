@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { AlignCenter, AlignLeft, AlignRight, Bold, FileSpreadsheet, Italic, Plus, Trash2, Underline, X } from "lucide-react";
 import ReportPageCanvas from "../../shared/components/ReportPageCanvas";
 import {
@@ -34,6 +34,27 @@ export default function ReportFormSettingsPage({
   );
   const [selected, setSelected] = useState<Selection | null>(null);
   const [menu, setMenu] = useState<{ page: number; row: number } | null>(null);
+  useEffect(() => {
+    const onTourStep = (event: Event) => {
+      const detail = (event as CustomEvent<{ path: string; target: string }>).detail;
+      if (detail.path !== "/finance/report-settings") return;
+      const target = detail.target;
+      setMenu(target === "report-row-options" ? { page: 0, row: 0 } : null);
+      const rowForType: Record<string, number> = {
+        "report-editor-choice": 0, "report-editor-format": 0, "report-editor-text": 0,
+        "report-editor-date": 2, "report-editor-table": 3, "report-editor-signature": 4,
+      };
+      const row = rowForType[target];
+      if (row === undefined) { setSelected(null); return; }
+      const page = layout.pages[0];
+      const actualRow = page?.rows.findIndex((item) => item.blocks.some((itemBlock) => itemBlock?.type === (target === "report-editor-date" ? "date" : target === "report-editor-table" ? "table" : target === "report-editor-signature" ? "signature" : "text"))) ?? -1;
+      const selectedRow = actualRow >= 0 ? actualRow : Math.min(row, (page?.rows.length ?? 1) - 1);
+      const slot = Math.max(0, page?.rows[selectedRow]?.blocks.findIndex(Boolean) ?? 0);
+      setSelected({ page: 0, row: selectedRow, slot });
+    };
+    window.addEventListener("thaiteacher:tour-step", onTourStep);
+    return () => window.removeEventListener("thaiteacher:tour-step", onTourStep);
+  }, [layout]);
   const update = (fn: (draft: ReportLayout) => void) => {
     const draft = structuredClone(layout);
     fn(draft);
@@ -122,6 +143,7 @@ export default function ReportFormSettingsPage({
         </div>
         {onPreview && (
           <button
+            data-tour="report-preview"
             type="button"
             onClick={onPreview}
             className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-white"
@@ -154,6 +176,7 @@ export default function ReportFormSettingsPage({
           <button
             type="button"
             onClick={() => addRow(i)}
+            data-tour={i === 0 ? "report-add-row" : undefined}
             className="inline-flex items-center gap-1 rounded-lg border border-blue-300 px-3 py-2 text-sm text-blue-700 dark:text-blue-300"
           >
             <Plus size={16} /> เพิ่มแถว หน้า {i + 1}
@@ -172,6 +195,7 @@ export default function ReportFormSettingsPage({
       <button
         type="button"
         onClick={addPage}
+        data-tour="report-add-page"
         className="my-4 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-blue-300 py-5 text-blue-700 dark:text-blue-300"
       >
         <Plus size={20} /> เพิ่มหน้ากระดาษ
@@ -182,6 +206,7 @@ export default function ReportFormSettingsPage({
           onClick={() => setMenu(null)}
         >
           <div
+            data-tour="report-row-options"
             className="w-full max-w-sm rounded-2xl bg-white p-5 text-slate-900 shadow-xl dark:bg-slate-900 dark:text-white"
             onClick={(e) => e.stopPropagation()}
           >
@@ -254,7 +279,7 @@ export default function ReportFormSettingsPage({
             <div className="grid gap-6 md:grid-cols-[240px_minmax(0,1fr)] lg:gap-8">
             <div className="min-w-0">
             <p className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">1. เลือกสิ่งที่จะแสดง</p>
-            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-1">
+            <div data-tour="report-editor-choice" className="grid gap-2 sm:grid-cols-2 md:grid-cols-1">
               {choices.map((c) => (
                 <button
                   key={c.type}
@@ -271,7 +296,7 @@ export default function ReportFormSettingsPage({
             <div className="min-w-0">
               <p className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">2. กรอกรายละเอียด</p>
               {block && block.type !== "table" && block.type !== "divider" && (
-                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
+                <div data-tour="report-editor-format" className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
                   <p className="mb-2 text-xs font-semibold text-slate-600 dark:text-slate-300">จัดรูปแบบข้อความทั้งช่อง</p>
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-600 dark:bg-slate-900" aria-label="จัดตำแหน่งข้อความ">
@@ -305,6 +330,7 @@ export default function ReportFormSettingsPage({
                   พิมพ์ข้อความที่จะแสดง
                 </label>
                 <textarea
+                  data-tour="report-editor-text"
                   value={block.text || ""}
                   onChange={(e) => setBlock({ text: e.target.value })}
                   style={editorStyle}
@@ -321,6 +347,7 @@ export default function ReportFormSettingsPage({
                   พิมพ์ข้อความลงชื่อและตำแหน่ง
                 </label>
                 <textarea
+                  data-tour="report-editor-signature"
                   value={block.text ?? signatureText(block)}
                   onChange={(e) => setBlock({ text: e.target.value })}
                   onKeyDown={(e) => {
@@ -384,7 +411,7 @@ export default function ReportFormSettingsPage({
                   </label>
                 </div>
                 <div>
-                  <p className="mb-2 text-sm font-medium">ชื่อหัวตาราง</p>
+                  <p data-tour="report-editor-table" className="mb-2 text-sm font-medium">ชื่อหัวตาราง</p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {defaultTableHeaders.map((label, i) => (
                       <label
@@ -464,6 +491,7 @@ export default function ReportFormSettingsPage({
                     ข้อความวันที่
                   </label>
                   <textarea
+                    data-tour="report-editor-date"
                     value={
                       block.text ??
                       (block.dateMode === "manual"
