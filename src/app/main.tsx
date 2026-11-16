@@ -1,3 +1,4 @@
+import { installApiRequestCache } from "../shared/funtion/apiRequestCache";
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
@@ -8,6 +9,7 @@ import ApiLoadingIndicator from '../shared/components/ApiLoadingIndicator.tsx'
 import { installApiLoading } from '../shared/funtion/apiLoading.ts'
 import LegalCenter from '../shared/components/LegalCenter.tsx'
 
+installApiRequestCache()
 installApiLoading()
 
 createRoot(document.getElementById('root')!).render(

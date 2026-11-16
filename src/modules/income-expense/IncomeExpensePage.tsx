@@ -1,3 +1,4 @@
+import { useFinanceReadOnly } from "../../shared/FinanceAccess";
 import { scopedStorage } from '../../shared/funtion/scopedStorage';
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "firebase/auth";
@@ -81,6 +82,7 @@ export default function IncomeExpensePage({
       ...(initialCategory ? [initialCategory] : []),
     ]),
   ];
+  const readOnly = useFinanceReadOnly();
   const [entries, setEntries] = useState<Entry[]>(() => {
     try {
       const saved = JSON.parse(scopedStorage.getItem(key(school)) || "[]");
@@ -222,6 +224,7 @@ export default function IncomeExpensePage({
     }
   };
   const start = (kind: "income" | "expense", entry?: Entry) => {
+    if (readOnly) return;
     setDraft(
       entry
         ? { ...entry, amount: String(entry.amount) }
@@ -252,6 +255,7 @@ export default function IncomeExpensePage({
     return () => window.clearTimeout(timer);
   }, [tourActive]);
   const save = async () => {
+    if (readOnly) return;
     const amount = Number(draft.amount);
     if(draft.date && fiscalYearOf(draft.date)!==fiscalYear){setError(`วันที่ต้องอยู่ในปีงบประมาณ ${fiscalYear}`);return}
     if (
@@ -318,6 +322,7 @@ export default function IncomeExpensePage({
     } finally { setSavingEntry(false); }
   };
   const remove = async (entry: Entry) => {
+    if (readOnly) return;
     if (loadingEntries || (!demo && syncMessage)) { setSyncMessage("กรุณาโหลดรายการล่าสุดให้สำเร็จก่อนลบ"); return; }
     if (!window.confirm(remoteVersions[entry.id] || demo ? "ลบรายการนี้? ยอดในรายงานของวันที่ทำรายการจะปรับกลับด้วย" : "ลบรายการเก่านี้? รายการนี้ยังไม่เชื่อมกับยอดในรายงานรายวัน")) return;
     setSavingEntry(true);
@@ -385,7 +390,7 @@ export default function IncomeExpensePage({
             <option key={name}>{name}</option>
           ))}
         </select>
-        <div data-tour="cashbook-actions" className="flex w-full gap-2 lg:w-auto lg:shrink-0"><button onClick={() => start("income")} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 lg:flex-none"><ArrowDownLeft size={18}/> บันทึกรายรับ</button><button onClick={() => start("expense")} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-blue-300 bg-white px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-blue-800 dark:bg-slate-900 dark:text-blue-300 lg:flex-none"><ArrowUpRight size={18}/> บันทึกรายจ่าย</button></div>
+        <div data-tour="cashbook-actions" className="flex w-full gap-2 lg:w-auto lg:shrink-0"><button title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => start("income")} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 lg:flex-none"><ArrowDownLeft size={18}/> บันทึกรายรับ</button><button title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => start("expense")} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-blue-300 bg-white px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-blue-800 dark:bg-slate-900 dark:text-blue-300 lg:flex-none"><ArrowUpRight size={18}/> บันทึกรายจ่าย</button></div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
@@ -560,7 +565,7 @@ export default function IncomeExpensePage({
                     </a>
                   )}
                   {!entry.id.startsWith("loan:") && !entry.id.startsWith("pexp_") && <button
-                    onClick={() => start(entry.kind, entry)}
+                    title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => start(entry.kind, entry)}
                     aria-label="แก้ไขรายการ"
                     className="p-1 text-blue-700"
                   >
@@ -568,7 +573,7 @@ export default function IncomeExpensePage({
                   </button>}
                   {!entry.id.startsWith("loan:") && !entry.id.startsWith("pexp_") && <button
                     onClick={() => void remove(entry)}
-                    disabled={savingEntry}
+                    title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly || savingEntry}
                     aria-label="ลบรายการ"
                     className="p-1 text-rose-600"
                   >
@@ -662,7 +667,7 @@ export default function IncomeExpensePage({
                   </td>
                   <td className="whitespace-nowrap px-2 py-3 text-center">
                     {!entry.id.startsWith("loan:") && !entry.id.startsWith("pexp_") && <button
-                      onClick={() => start(entry.kind, entry)}
+                      title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => start(entry.kind, entry)}
                       aria-label="แก้ไขรายการ"
                       className="rounded p-2 text-blue-700 hover:bg-blue-50 dark:text-blue-300"
                     >
@@ -670,7 +675,7 @@ export default function IncomeExpensePage({
                     </button>}
                     {!entry.id.startsWith("loan:") && !entry.id.startsWith("pexp_") && <button
                       onClick={() => void remove(entry)}
-                      disabled={savingEntry}
+                      title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly || savingEntry}
                       aria-label="ลบรายการ"
                       className="rounded p-2 text-rose-600 hover:bg-rose-50"
                     >

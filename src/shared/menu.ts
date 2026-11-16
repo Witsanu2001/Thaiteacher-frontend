@@ -9,6 +9,7 @@ export const menuConfig: MenuItem[] = [
   { label: "Dashboard", path: "/admin/dashboard", role: "superAdmin" },
   { label: "ผู้ใช้งาน", path: "/admin/users", role: "superAdmin" },
   { label: "บริการลูกค้า", path: "/admin/support", role: "superAdmin" },
+  { label: "ตั้งค่าระบบ", path: "/admin/settings", role: "superAdmin" },
   { label: "ประกาศ", path: "/admin/announcements", role: "superAdmin" },
   { label: "ลบบัญชีผู้ใช้", path: "/admin/clear-users", role: "superAdmin" },
   { label: "ผู้ช่วย AI", path: "/admin/gimini-ai", role: "superAdmin" },
@@ -38,6 +39,7 @@ export const menuConfig: MenuItem[] = [
   },
   { label: "ติดต่อเรา", path: "/finance/contact", role: "teacher" },
   { label: "โปรไฟล์บัญชี", path: "/finance/profile", role: "teacher", hidden: true },
+  { label: "แพ็กเกจและชำระเงิน", path: "/billing", role: "teacher", hidden: true },
   { label: "โปรไฟล์บัญชี", path: "/admin/profile", role: "superAdmin", hidden: true },
   { label: "ผู้ช่วย AI", path: "/finance/gimini-ai", role: "teacher" },
 ];

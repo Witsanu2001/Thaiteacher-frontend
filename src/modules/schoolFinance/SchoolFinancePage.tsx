@@ -1,3 +1,4 @@
+import { useFinanceReadOnly } from "../../shared/FinanceAccess";
 import { scopedStorage } from "../../shared/funtion/scopedStorage";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import axios from "axios";
@@ -104,6 +105,7 @@ export default function SchoolFinancePage({
 }) {
   const { pathname } = useLocation();
   const active = pageFromPath(pathname);
+  const readOnly = useFinanceReadOnly();
   const loadReports = useCallback(
     () => {
       if (demo) return Promise.resolve(loadDemoReports());
@@ -114,11 +116,12 @@ export default function SchoolFinancePage({
   );
   const saveReports = useCallback(
     (reports: Report[]) => {
+      if (readOnly) return Promise.reject(new Error("แพ็กเกจหมดอายุ ดูข้อมูลได้อย่างเดียว"));
       if (demo) return Promise.resolve(saveDemoReports(reports));
       if (!user) return Promise.reject(new Error("ต้องเข้าสู่ระบบก่อนบันทึกรายงาน"));
       return saveBudgetReports(user, reports, viewAsUid);
     },
-    [demo, user, viewAsUid],
+    [demo, user, viewAsUid, readOnly],
   );
   const [schools, setSchools] = useState<School[]>(() => {
     try {
@@ -168,7 +171,6 @@ export default function SchoolFinancePage({
   const [importing, setImporting] = useState(false);
   const [reportLoading, setReportLoading] = useState(true);
   const [syncError, setSyncError] = useState("");
-  const [conflictBackup, setConflictBackup] = useState<Report[]>([]);
   const [savingReport, setSavingReport] = useState(false);
   const [tourActive, setTourActive] = useState(false);
   const [selectedDay, setSelectedDay] = useState("");
@@ -228,10 +230,9 @@ export default function SchoolFinancePage({
               JSON.stringify(conflicts),
             );
           } catch {
-            /* The download button still exposes the in-memory backup. */
+            /* A storage failure must not prevent loading server reports. */
           }
         }
-        setConflictBackup(conflicts);
         const next = current.map((item, i) =>
           i === index ? { ...item, reports: merged } : item,
         );
@@ -244,7 +245,7 @@ export default function SchoolFinancePage({
               ? year
               : fiscalYearOf(merged.at(-1)!.date),
           );
-        if (localOnly.length) {
+        if (localOnly.length && !readOnly) {
           try {
             await saveReports(localOnly);
           } catch {
@@ -254,10 +255,6 @@ export default function SchoolFinancePage({
               );
           }
         }
-        if (conflicts.length && !cancelled)
-          setSyncError(
-            `พบข้อมูลต่างกัน ${conflicts.length} วัน ใช้ข้อมูลจากระบบ และสำรองข้อมูลในเครื่องไว้แล้ว`,
-          );
       } catch {
         if (!cancelled)
           setSyncError(
@@ -271,7 +268,7 @@ export default function SchoolFinancePage({
     return () => {
       cancelled = true;
     };
-  }, [initialSchoolName, loadReports, saveReports]);
+  }, [initialSchoolName, loadReports, saveReports, readOnly]);
   useEffect(() => {
     let active = true;
     const refresh = async () => {
@@ -345,7 +342,7 @@ export default function SchoolFinancePage({
     index: number,
     field: "cash" | "bank" | "government" | "note",
   ) => {
-    if (!report) return;
+    if (readOnly || !report) return;
     setRows(report.rows.map((row) => ({ ...row })));
     setCellEdit({ index, field });
     setOperation("add");
@@ -432,6 +429,7 @@ export default function SchoolFinancePage({
     .at(-1);
   const carryExists = school?.reports.some((r) => r.date === carryTarget);
   const openCarryForward = () => {
+    if (readOnly) return;
     setSelectedDay(
       currentFiscalYear() === selectedFiscalYear
         ? today()
@@ -587,7 +585,7 @@ export default function SchoolFinancePage({
         : firstDayOfFiscalYear(selectedFiscalYear),
     );
     setError("");
-    setOpen(true);
+    if (!readOnly) setOpen(true);
   };
   useEffect(() => {
     const showStep = (event: Event) => {
@@ -738,18 +736,6 @@ export default function SchoolFinancePage({
       return reportSaveError(error, "เปิดปีงบประมาณไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อระบบ");
     }
   };
-  const downloadConflictBackup = () => {
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(conflictBackup, null, 2)], {
-        type: "application/json",
-      }),
-    );
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `budget-report-backup-${initialSchoolName}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
   if (reportLoading)
     return (
       <div className="grid h-dvh place-items-center bg-slate-50 text-sm text-slate-500 dark:bg-slate-950 dark:text-slate-300">
@@ -800,15 +786,6 @@ export default function SchoolFinancePage({
             className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
           >
             <span>{syncError}</span>
-            {conflictBackup.length > 0 && (
-              <button
-                type="button"
-                onClick={downloadConflictBackup}
-                className="rounded-lg border border-amber-300 px-3 py-1.5 font-semibold dark:border-amber-700"
-              >
-                ดาวน์โหลดสำเนาข้อมูลในเครื่อง
-              </button>
-            )}
           </div>
         )}
         <FinancePageProvider
@@ -856,7 +833,7 @@ export default function SchoolFinancePage({
                 : "เพิ่มชื่อโรงเรียน ประเภทเงิน และยอดคงเหลือครั้งแรก"}
             </p>
             <button
-              onClick={() => begin(school ? "balance" : "template")}
+              title={readOnly ? "แพ็กเกจหมดอายุ" : undefined} disabled={readOnly} onClick={() => begin(school ? "balance" : "template")}
               className="mt-6 rounded-lg bg-blue-700 px-5 py-3 text-white"
             >
               {school ? "สร้างรายงานปีนี้" : "สร้างแบบฟอร์มของโรงเรียน"}
@@ -960,7 +937,7 @@ export default function SchoolFinancePage({
                   </label>
                   <button
                     data-tour="edit-form"
-                    onClick={() => begin("template")}
+                    title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => begin("template")}
                     className="inline-flex h-12 min-w-40 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-medium motion-safe:transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900"
                   >
                     <Pencil size={16} />
@@ -968,7 +945,7 @@ export default function SchoolFinancePage({
                   </button>
                   <button
                     data-tour="add-day"
-                    onClick={openCarryForward}
+                    title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={openCarryForward}
                     className="h-12 min-w-40 rounded-xl border border-blue-600 px-4 text-sm font-medium text-blue-700 motion-safe:transition-all hover:-translate-y-0.5 hover:bg-blue-50 hover:shadow-sm dark:text-blue-300 dark:hover:bg-blue-950"
                   >
                     + เพิ่มวันใหม่
@@ -1065,7 +1042,7 @@ export default function SchoolFinancePage({
                                             <button
                                               data-tour="balance-cell"
                                               type="button"
-                                              onClick={() => openCell(i, field)}
+                                              title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => openCell(i, field)}
                                               aria-label={`แก้ไข ${field} ${row.name}`}
                                               className="min-w-28 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-right font-medium text-blue-800 hover:border-blue-500 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200"
                                             >
@@ -1106,7 +1083,7 @@ export default function SchoolFinancePage({
                                   ) : (
                                     <button
                                       type="button"
-                                      onClick={() => openCell(i, "note")}
+                                      title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => openCell(i, "note")}
                                       className={`min-w-24 rounded-lg border px-3 py-2 text-left hover:border-blue-500 ${row.note?.trim() ? "border-blue-200 bg-blue-50 font-medium text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300" : "border-slate-200 text-slate-400 dark:border-slate-700 dark:text-slate-500"}`}
                                     >
                                       {row.note || "เพิ่มหมายเหตุ"}

@@ -1,3 +1,6 @@
+import { useTrialDays } from "./funtion/useTrialDays";
+import { useNavigate } from "react-router-dom";
+import { useFinanceReadOnly } from "./FinanceAccess";
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, Menu, Moon, School, Sun, X } from "lucide-react";
 import { firstDayOfFiscalYear } from "../shared/funtion/fiscalYear";
@@ -46,6 +49,9 @@ export default function Header({
   onLogin,
   aiAllowed = false,
 }: HeaderProps) {
+  const trialDays = useTrialDays();
+  const readOnly = useFinanceReadOnly();
+  const navigate = useNavigate();
   const [opening, setOpening] = useState(false);
   const [newYear, setNewYear] = useState(fiscalYear + 1);
   const [carry, setCarry] = useState(true);
@@ -73,7 +79,7 @@ export default function Header({
       setNewYear(Math.max(...fiscalYears, fiscalYear) + 1);
       setCarry(true);
       setError("");
-      setOpening(true);
+      if (!readOnly) setOpening(true);
     } else onFiscalYearChange(Number(value));
   };
   const yearOptions = (
@@ -83,10 +89,11 @@ export default function Header({
           ปีงบประมาณ {year}
         </option>
       ))}
-      <option value="new">+ เปิดปีงบประมาณใหม่…</option>
+      <option disabled={readOnly} value="new">+ เปิดปีงบประมาณใหม่…</option>
     </>
   );
   const submitYear = async () => {
+    if (readOnly) return;
     if (!Number.isInteger(newYear) || newYear < 2500 || newYear > 2900) {
       setError("กรอกปีงบประมาณ พ.ศ. ให้ถูกต้อง");
       return;
@@ -113,16 +120,27 @@ export default function Header({
           </button>
           <div className="min-w-0 flex-1">
             <PageTitle active={active} />
-            {!demo ? <button type="button" data-tour="fiscal-year" aria-label="ข้อมูลโรงเรียนและปีงบประมาณ" aria-expanded={contextOpen} aria-controls={contextId} onClick={() => setContextOpen(value => !value)} className="mt-0.5 inline-flex max-w-full items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-300 sm:hidden">
+          {!demo ? <button type="button" data-tour="fiscal-year" aria-label="ข้อมูลโรงเรียนและปีงบประมาณ" aria-expanded={contextOpen} aria-controls={contextId} onClick={() => setContextOpen(value => !value)} className="mt-0.5 inline-flex max-w-full items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-300 sm:hidden">
               <span className="truncate">ปีงบฯ {fiscalYear}</span><ChevronDown size={13} className="shrink-0" />
-            </button> : <button type="button" onClick={onLogin} className="mt-0.5 text-xs font-semibold text-blue-600 dark:text-blue-300 sm:hidden">ทดลองใช้ 9 วัน</button>}
+            </button> : <button type="button" onClick={onLogin} className="mt-0.5 text-xs font-semibold text-blue-600 dark:text-blue-300 sm:hidden">ทดลองใช้ {trialDays} วัน</button>}
           </div>
           {!demo ? <button type="button" data-tour="fiscal-year" aria-label="ข้อมูลโรงเรียนและปีงบประมาณ" aria-expanded={contextOpen} aria-controls={contextId} onClick={() => setContextOpen(value => !value)} className="hidden min-w-0 max-w-[280px] items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-blue-700 dark:hover:bg-slate-700 sm:flex md:max-w-[320px] lg:max-w-[240px] xl:max-w-[320px]">
             <School size={17} className="shrink-0 text-slate-400" />
             <span className="min-w-0 truncate font-medium text-slate-600 dark:text-slate-300" title={schoolName}>{schoolName || "โรงเรียนของคุณ"}</span>
             <span className="shrink-0 border-l border-slate-200 pl-2 font-semibold tabular-nums text-blue-700 dark:border-slate-600 dark:text-blue-300">{fiscalYear}</span>
             <ChevronDown size={15} className="shrink-0 text-slate-400" />
-          </button> : <button type="button" data-tour="fiscal-year" onClick={onLogin} className="hidden shrink-0 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:block">ทดลองใช้ 9 วัน</button>}
+          </button> : <button type="button" data-tour="fiscal-year" onClick={onLogin} className="hidden shrink-0 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:block">ทดลองใช้ {trialDays} วัน</button>}
+            {readOnly && !demo && (
+            <button
+              type="button"
+              onClick={() => navigate("/billing")}
+              aria-label="ต่ออายุ 99 บาท / เดือน"
+              className="shrink-0 rounded-xl bg-blue-600 px-2.5 py-2 text-xs font-semibold leading-tight text-white shadow-sm transition-colors hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:px-4 sm:text-sm"
+            >
+              <span className="block sm:inline">ต่ออายุ</span>{" "}
+              <span className="block sm:inline">99 บาท / เดือน</span>
+            </button>
+          )}
           <div className="flex shrink-0 items-center gap-0.5 border-l border-slate-200 pl-1 dark:border-slate-700 sm:gap-1 sm:pl-2">
             {aiAllowed && !demo && <AiHeaderButton to="/finance/gimini-ai" />}
             <NotificationBell demo={demo} />

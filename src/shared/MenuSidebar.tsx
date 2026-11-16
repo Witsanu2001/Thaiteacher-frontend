@@ -1,9 +1,12 @@
+import BrandLogo from "./components/BrandLogo";
+import { APP_VERSION } from "../config/appVersion";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowRightLeft,
   BookOpen,
   Cookie,
+  CreditCard,
   FileDown,
   FileText,
   FolderKanban,
@@ -28,6 +31,7 @@ const menuIcons: Record<string, LucideIcon> = {
   ผู้ใช้งาน: UsersRound,
   บริการลูกค้า: MessageCircle,
   ประกาศ: Megaphone,
+  ตั้งค่าระบบ: Settings,
   ลบบัญชีผู้ใช้: Trash2,
   ภาพรวมงบประมาณ: LayoutDashboard,
   ทะเบียนคุมเงิน: BookOpen,
@@ -151,13 +155,15 @@ function Menu({
         }`}
       >
         {/* Logo */}
-        <div className="mb-6 flex shrink-0 items-start gap-2 border-b border-slate-100 pb-5 dark:border-slate-800">
+        <div className="flex shrink-0 items-start gap-2 border-b border-slate-100 pb-2 dark:border-slate-800">
           <div className="min-w-0 flex-1">
-            <img
-              src="/haiteacher-brand.png"
-              alt="HaiTeacher ให้ทุกวันของครูง่ายขึ้น"
-              className="h-auto w-full object-contain"
-            />
+            <BrandLogo className="h-auto w-full object-contain" />
+            <p
+              aria-label={`เวอร์ชัน ${APP_VERSION}`}
+              className="mt-1.5 text-right text-[11px] font-medium leading-4 tracking-wide text-slate-500 dark:text-slate-400"
+            >
+              v{APP_VERSION}
+            </p>
           </div>
 
           <button
@@ -243,6 +249,11 @@ function Menu({
               )}
               {!isSupperAdmin && (
                 <>
+                  {!isDemo && <button
+                    type="button"
+                    onClick={() => nav("แพ็กเกจและชำระเงิน")}
+                    className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] text-slate-600 hover:bg-blue-50 dark:text-slate-300 dark:hover:bg-slate-800"
+                  ><CreditCard size={17} /> แพ็กเกจและชำระเงิน</button>}
                   <button
                     type="button"
                     onClick={() => nav("ติดต่อเรา")}

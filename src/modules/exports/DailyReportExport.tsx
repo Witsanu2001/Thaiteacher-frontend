@@ -1,3 +1,4 @@
+import { useFinanceReadOnly } from "../../shared/FinanceAccess";
 import { scopedStorage } from "../../shared/funtion/scopedStorage";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -40,6 +41,8 @@ export default function DailyReportExport({
   onClose: () => void;
   archive?: { layout: ReportLayout | null; config: ExportFormConfig };
 }) {
+  const readOnly = useFinanceReadOnly();
+  const excelAllowed = !readOnly || window.location.pathname === "/finance/exports";
   const [pageImages, setPageImages] = useState<ReportPageImage[]>([]);
   const [decodedImages, setDecodedImages] = useState<Set<string>>(() => new Set());
   const printReady = pageImages.length > 0 && pageImages.every(page => decodedImages.has(page.image));
@@ -388,6 +391,7 @@ export default function DailyReportExport({
     remember("PDF");
   };
   const printReport = () => {
+    if (readOnly) return;
     if (!printReady) return;
     // Keep print() directly in the tap handler. Safari may reject it after
     // asynchronous work, and export history updates must not delay this call.
@@ -395,6 +399,7 @@ export default function DailyReportExport({
     remember("Print");
   };
   const runExport = async (format: "Excel" | "PDF" | "Word") => {
+    if (readOnly && (format !== "Excel" || !excelAllowed)) return;
     if (exporting) return;
     setExportError("");
     setExporting(format);
@@ -431,7 +436,7 @@ export default function DailyReportExport({
             <button
               type="button"
               onClick={() => void runExport("Excel")}
-              disabled={Boolean(exporting)}
+              title={!excelAllowed ? "แพ็กเกจหมดอายุ ส่งออก Excel ได้ที่หน้าส่งออกทะเบียน" : undefined} disabled={Boolean(exporting) || !excelAllowed}
               className="inline-flex items-center gap-2 rounded-lg border border-blue-600 px-3 py-2 text-sm text-blue-700 dark:text-blue-300"
             >
               {exporting === "Excel" ? <Loader2 size={17} className="animate-spin" /> : <FileSpreadsheet size={17} />} Excel
@@ -439,7 +444,7 @@ export default function DailyReportExport({
             <button
               type="button"
               onClick={printReport}
-              disabled={Boolean(exporting) || !printReady}
+              title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly || Boolean(exporting) || !printReady}
               className="inline-flex items-center gap-2 rounded-lg border border-blue-600 px-3 py-2 text-sm text-blue-700 dark:text-blue-300"
             >
               {!printReady ? <Loader2 size={17} className="animate-spin" /> : <Printer size={17} />} {printReady ? "พิมพ์" : "กำลังเตรียมพิมพ์…"}
@@ -447,7 +452,7 @@ export default function DailyReportExport({
             <button
               type="button"
               onClick={() => void runExport("PDF")}
-              disabled={Boolean(exporting) || !pageImages.length}
+              title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly || Boolean(exporting) || !pageImages.length}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-sm text-white"
             >
               {exporting === "PDF" ? <Loader2 size={17} className="animate-spin" /> : <FileDown size={17} />} บันทึก PDF
@@ -455,7 +460,7 @@ export default function DailyReportExport({
             <button
               type="button"
               onClick={() => void runExport("Word")}
-              disabled={Boolean(exporting)}
+              title={readOnly ? "แพ็กเกจหมดอายุ" : undefined} disabled={Boolean(exporting) || readOnly}
               className="inline-flex items-center gap-2 rounded-lg border border-blue-600 px-3 py-2 text-sm text-blue-700 dark:text-blue-300"
             >
               {exporting === "Word" ? <Loader2 size={17} className="animate-spin" /> : <FileText size={17} />} Word

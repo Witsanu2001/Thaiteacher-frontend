@@ -1,3 +1,4 @@
+import { useFinanceReadOnly } from "../../shared/FinanceAccess";
 import { useMemo, useState } from "react";
 import type { User } from "firebase/auth";
 import { AlertTriangle, Download, FileSpreadsheet, RotateCcw, Upload } from "lucide-react";
@@ -27,6 +28,7 @@ const download = async (data: FinanceBackup, prefix: string) => {
 };
 
 export default function FinanceBackupPanel({ school, reports, user, viewAsUid, demo }: { school: string; reports: DailyReport[]; user?: User; viewAsUid?: string; demo: boolean }) {
+  const readOnly = useFinanceReadOnly();
   const dates = useMemo(() => reports.map(report => report.date).sort(), [reports]);
   const [from, setFrom] = useState(dates[0] || todayIso());
   const [to, setTo] = useState(dates.at(-1) || todayIso());
@@ -42,7 +44,7 @@ export default function FinanceBackupPanel({ school, reports, user, viewAsUid, d
   const getCurrent = async (): Promise<Current> => {
     const [latestReports, appState] = demo
       ? [loadDemoReports(), { [cashbookKey]: scopedStorage.getItem(cashbookKey) || "[]", [vouchersKey]: scopedStorage.getItem(vouchersKey) || "{}", [openingKey]: scopedStorage.getItem(openingKey) || "{}" }] as const
-      : await Promise.all([loadBudgetReports(user!, viewAsUid), loadAppState(user!, viewAsUid)]);
+      : await Promise.all([loadBudgetReports(user!, viewAsUid, true), loadAppState(user!, viewAsUid, true)]);
     return {
       reports: latestReports,
       entries: readJson<CashbookEntry[]>(appState[cashbookKey], []),
@@ -109,6 +111,7 @@ export default function FinanceBackupPanel({ school, reports, user, viewAsUid, d
     finally { setBusy(false); }
   };
   const restore = async () => {
+    if (readOnly) return;
     if (!pending || !backupReady) return;
     setBusy(true); setMessage("");
     try {
@@ -155,14 +158,14 @@ export default function FinanceBackupPanel({ school, reports, user, viewAsUid, d
   return <section className="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm dark:border-blue-900 dark:bg-slate-900 sm:p-6">
     <div className="flex items-start gap-3"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"><FileSpreadsheet size={22}/></span><div><h2 className="text-xl font-semibold">สำรองและกู้คืนข้อมูลการเงิน</h2><p className="mt-1 text-sm text-slate-500">เลือกวันที่ได้ทุกปี · ไฟล์ Excel รวมยอดรายวัน รายรับ–รายจ่าย ใบสำคัญ และยอดยกมา</p></div></div>
     <div className="mt-5 flex flex-wrap items-end gap-3"><label className="grid gap-1.5 text-sm font-medium">ตั้งแต่วันที่<ThaiDatePicker value={from} onChange={setFrom}/></label><label className="grid gap-1.5 text-sm font-medium">ถึงวันที่<ThaiDatePicker value={to} onChange={setTo}/></label><button type="button" disabled={busy} onClick={() => void exportRange()} className="inline-flex h-12 items-center gap-2 rounded-xl bg-blue-700 px-5 font-semibold text-white disabled:opacity-50"><Download size={18}/> ส่งออก Excel</button></div>
-    <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-5 dark:border-slate-800"><label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-blue-300 px-4 py-3 text-sm font-semibold text-blue-700 dark:border-blue-800 dark:text-blue-300"><Upload size={17}/> เลือกไฟล์ Excel เพื่อกู้คืน<input type="file" accept=".xlsx" className="sr-only" disabled={busy} onChange={event => { void selectFile(event.target.files?.[0]); event.target.value = ""; }}/></label><span className="text-xs text-slate-500">ข้อมูลที่มีอยู่จะไม่ถูกทับ เว้นแต่เลือกแทนที่หลังตรวจตัวอย่าง</span></div>
+    <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-5 dark:border-slate-800"><label className="inline-flex has-disabled:cursor-not-allowed has-disabled:opacity-40 cursor-pointer items-center gap-2 rounded-xl border border-blue-300 px-4 py-3 text-sm font-semibold text-blue-700 dark:border-blue-800 dark:text-blue-300"><Upload size={17}/> เลือกไฟล์ Excel เพื่อกู้คืน<input type="file" accept=".xlsx" className="sr-only" title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly || busy} onChange={event => { if (readOnly) return; void selectFile(event.target.files?.[0]); event.target.value = ""; }}/></label><span className="text-xs text-slate-500">ข้อมูลที่มีอยู่จะไม่ถูกทับ เว้นแต่เลือกแทนที่หลังตรวจตัวอย่าง</span></div>
     {message && <p role="status" className="mt-4 rounded-xl bg-blue-50 p-3 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100">{message}</p>}
     {pending && <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950">
       <div className="flex items-center gap-2 font-semibold text-amber-900 dark:text-amber-200"><AlertTriangle size={18}/> ตรวจข้อมูลก่อนกู้คืน</div>
       <p className="mt-2 text-sm">{thaiDate(pending.data.from)} – {thaiDate(pending.data.to)} · ยอดรายวัน {pending.data.reports.length} วัน ({pending.existingReports} วันมีแล้ว) · รับ–จ่าย {pending.data.entries.length} รายการ ({pending.existingEntries} รายการมีแล้ว) · ใบสำคัญ {Object.keys(pending.data.vouchers).length} รายการ ({pending.existingVouchers} รายการมีแล้ว) · ยอดยกมา {Object.keys(pending.data.opening).length} รายการ ({pending.existingOpening} รายการมีแล้ว)</p>
       <label className="mt-4 flex items-start gap-2 text-sm"><input type="checkbox" checked={replaceExisting} onChange={event => setReplaceExisting(event.target.checked)} className="mt-1"/><span>แทนที่รายการที่มีรหัสหรือวันที่ตรงกัน (เก็บไฟล์แนบเดิมของรายการนั้น)</span></label>
       <p className="mt-3 text-xs text-amber-800 dark:text-amber-300">ดาวน์โหลดข้อมูลปัจจุบันก่อนกู้คืน · ไฟล์แนบไม่ได้อยู่ใน Excel และต้องสำรองแยก</p>
-      <div className="mt-4 flex flex-wrap gap-2"><button type="button" disabled={busy} onClick={() => void downloadBeforeRestore()} className="inline-flex items-center gap-2 rounded-lg border border-amber-500 px-4 py-2 font-semibold"><Download size={17}/> {backupReady ? "ดาวน์โหลดสำเนาอีกครั้ง" : "1. ดาวน์โหลดสำเนาปัจจุบัน"}</button><button type="button" disabled={busy || !backupReady} onClick={() => void restore()} className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white disabled:opacity-50"><RotateCcw size={17}/> 2. ยืนยันกู้คืน</button><button type="button" onClick={() => setPending(null)} className="rounded-lg border border-slate-300 px-4 py-2 dark:border-slate-700">ยกเลิก</button></div>
+      <div className="mt-4 flex flex-wrap gap-2"><button type="button" disabled={busy} onClick={() => void downloadBeforeRestore()} className="inline-flex items-center gap-2 rounded-lg border border-amber-500 px-4 py-2 font-semibold"><Download size={17}/> {backupReady ? "ดาวน์โหลดสำเนาอีกครั้ง" : "1. ดาวน์โหลดสำเนาปัจจุบัน"}</button><button type="button" title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly || busy || !backupReady} onClick={() => void restore()} className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white disabled:opacity-50"><RotateCcw size={17}/> 2. ยืนยันกู้คืน</button><button type="button" onClick={() => setPending(null)} className="rounded-lg border border-slate-300 px-4 py-2 dark:border-slate-700">ยกเลิก</button></div>
     </div>}
   </section>;
 }

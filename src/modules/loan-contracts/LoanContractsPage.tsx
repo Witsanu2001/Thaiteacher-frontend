@@ -1,3 +1,4 @@
+import { useFinanceReadOnly } from "../../shared/FinanceAccess";
 import { useEffect, useState } from "react";
 import axios from "axios";
 import type { User } from "firebase/auth";
@@ -145,6 +146,7 @@ export default function LoanContractsPage({
   tourActive?: boolean;
 }) {
   const key = `school-loan-contracts:${school}`;
+  const readOnly = useFinanceReadOnly();
   const rememberKey = `school-loan-contract-location:${school}`;
   const [contracts, setContracts] = useState<VersionedLoan[]>(() =>
     demo ? readContracts(key) : [],
@@ -254,11 +256,13 @@ export default function LoanContractsPage({
     name: K,
     value: LoanContract[K],
   ) => {
+    if (readOnly) return;
     setDraft((current) => ({ ...current, [name]: value }));
     setDirty(true);
     setMessage("");
   };
   const updateSource = (change: Partial<LoanContract>) => {
+    if (readOnly) return;
     setDraft((current) => ({ ...current, ...change }));
     setDirty(true);
     setMessage("");
@@ -275,6 +279,7 @@ export default function LoanContractsPage({
       ),
     );
   const save = async () => {
+    if (readOnly) return;
     const invalidAmount = [...draft.expenses, ...(draft.repayments || [])].some(
       (item) =>
         item.amount &&
@@ -462,6 +467,7 @@ export default function LoanContractsPage({
     }
   };
   const approve = async () => {
+    if (readOnly) return;
     const stored = contracts.find((item) => item.id === draft.id);
     if (!stored || dirty || saving || stored.approvedAt) {
       setMessage("กรุณาบันทึกข้อมูลสัญญาให้เรียบร้อยก่อนอนุมัติ");
@@ -565,6 +571,7 @@ export default function LoanContractsPage({
     }
   };
   const create = () => {
+    if (readOnly) return;
     if (
       dirty &&
       !window.confirm(
@@ -603,6 +610,7 @@ export default function LoanContractsPage({
     return () => window.clearTimeout(timer);
   }, [tourActive, draft.id]);
   const remove = async () => {
+    if (readOnly) return;
     if (
       !contracts.some((item) => item.id === draft.id) ||
       !window.confirm("ลบสัญญาฉบับนี้ออกจากระบบ?")
@@ -742,7 +750,7 @@ export default function LoanContractsPage({
             type="button"
             data-tour="loan-save"
             onClick={save}
-            disabled={saving || (tourActive && draft.id === "tour-loan")}
+            title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly || saving || (tourActive && draft.id === "tour-loan")}
             className={`${button} bg-blue-700 text-white`}
           >
             <Save size={17} /> {saving ? "กำลังบันทึก..." : "บันทึก"}
@@ -752,7 +760,7 @@ export default function LoanContractsPage({
               <button
                 type="button"
                 onClick={() => void approve()}
-                disabled={saving || dirty}
+                title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly || saving || dirty}
                 className={`${button} bg-emerald-700 text-white hover:bg-emerald-800`}
               >
                 <CheckCircle2 size={17} /> อนุมัติและหักยอด
@@ -770,7 +778,7 @@ export default function LoanContractsPage({
               <button
                 type="button"
                 onClick={remove}
-                disabled={saving}
+                title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly || saving}
                 className={`${button} text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950`}
               >
                 <Trash2 size={16} /> ลบ
@@ -779,7 +787,7 @@ export default function LoanContractsPage({
         </div>
       </div>
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_290px]">
-        <div className="min-w-0 space-y-5">
+        <div className="min-w-0 space-y-5" onChangeCapture={event => { if (readOnly) { event.preventDefault(); event.stopPropagation(); } }}>
           <div
             role="tablist"
             aria-label="ส่วนของสัญญายืมเงิน"
@@ -828,7 +836,7 @@ export default function LoanContractsPage({
                 </p>
               )}
               <fieldset
-                disabled={Boolean(draft.approvedAt)}
+                title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly || Boolean(draft.approvedAt)}
                 className="space-y-5 disabled:opacity-75"
               >
                 <div>

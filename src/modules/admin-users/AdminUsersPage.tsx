@@ -1,3 +1,4 @@
+import AdminPaymentsPanel from "./AdminPaymentsPanel";
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "firebase/auth";
 import { Eye, Pencil, Search, Users, X } from "lucide-react";
@@ -58,7 +59,7 @@ function statusOf(profile: UserProfile, now: number) {
   const until =
     plan === "paid"
       ? new Date(profile.paidUntil || "").getTime()
-      : new Date(profile.createdAt || "").getTime() + 9 * 86400000;
+      : new Date(profile.createdAt || "").getTime() + (profile.trialDays || 9) * 86400000;
   const days = Math.max(0, Math.ceil((until - now) / 86400000));
   if (Number.isFinite(until) && until > now)
     return {
@@ -233,6 +234,7 @@ export default function AdminUsersPage({
             {error}
           </p>
         )}
+        <AdminPaymentsPanel user={user} onUserUpdated={updated => setUsers(current => current.map(item => item.uid === updated.uid ? updated : item))} />
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
           {loading ? null : filtered.length === 0 ? (
             <p className="p-8 text-center text-sm text-slate-500">

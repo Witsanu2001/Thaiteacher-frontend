@@ -1,3 +1,4 @@
+import AdminSettingsPage from "../modules/admin-settings/AdminSettingsPage";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import type { User } from "firebase/auth";
 import type { UserProfile } from "../config/services/users.service";
@@ -195,6 +196,7 @@ export default function AppRoutes({
           )
         }
       />
+      <Route path="/admin/settings" element={isAdmin && user ? <AdminSettingsPage user={user} onMenu={onMenu} dark={dark} onToggleDark={onToggleDark} /> : <Navigate to="/finance/school-finance" replace />} />
       <Route
         path="/admin/clear-users"
         element={isAdmin && user ? <AdminClearPage user={user} onMenu={onMenu} dark={dark} onToggleDark={onToggleDark} /> : <Navigate to="/finance/school-finance" replace />}

@@ -1,3 +1,4 @@
+import { useFinanceReadOnly } from "../../shared/FinanceAccess";
 import { FileImage, FileText, Plus, Trash2, Upload } from "lucide-react";
 import type { ChangeEvent } from "react";
 import type { LoanAttachment } from "./loanContract";
@@ -16,11 +17,12 @@ const sizeText = (size: number) => `${(size / 1024 / 1024).toFixed(1)} MB`;
 function FileItem({ name, size, image, pending, onOpen, onRemove }: {
   name: string; size: number; image: boolean; pending?: boolean; onOpen: () => void; onRemove: () => void;
 }) {
+  const readOnly = useFinanceReadOnly();
   return <div className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
     <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">{image ? <FileImage size={20}/> : <FileText size={20}/>}</span>
     <div className="min-w-0 flex-1"><p className="truncate font-medium" title={name}>{name}</p><p className="text-xs text-slate-500">{sizeText(size)}{pending ? " · รอบันทึก" : ""}</p></div>
     <button type="button" onClick={onOpen} className="rounded-lg px-2 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-slate-700">เปิด</button>
-    <button type="button" onClick={onRemove} aria-label={`ลบ ${name}`} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950"><Trash2 size={17}/></button>
+    <button type="button" title={readOnly ? "แพ็กเกจหมดอายุ" : undefined} disabled={readOnly} onClick={onRemove} aria-label={`ลบ ${name}`} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950"><Trash2 size={17}/></button>
   </div>;
 }
 
@@ -36,12 +38,14 @@ export default function LoanAttachments({ front, back, pendingFront, pendingBack
   onOpenSaved: (attachment: LoanAttachment) => void;
   onError: (message: string) => void;
 }) {
+  const readOnly = useFinanceReadOnly();
   const validate = (files: File[]) => {
     if (files.some(file => !allowedTypes.has(file.type) && !(file.type === "" && allowedExtensions.test(file.name)))) { onError("รองรับรูปภาพ JPG, PNG, WebP และเอกสาร PDF, Word, Excel เท่านั้น"); return false; }
     if (files.some(file => file.size > maxBytes || file.size === 0)) { onError("แต่ละไฟล์ต้องมีขนาดไม่เกิน 10 MB"); return false; }
     return true;
   };
   const chooseFront = (event: ChangeEvent<HTMLInputElement>) => {
+    if (readOnly) return;
     try {
       const file = event.currentTarget.files?.[0];
       if (file && validate([file])) onFront(file);
@@ -52,6 +56,7 @@ export default function LoanAttachments({ front, back, pendingFront, pendingBack
     }
   };
   const chooseBack = (event: ChangeEvent<HTMLInputElement>) => {
+    if (readOnly) return;
     try {
       const files = Array.from(event.currentTarget.files || []);
       if (back.length + pendingBack.length + files.length > maxFiles) { onError(`เอกสารด้านหลังแนบได้สูงสุด ${maxFiles} ไฟล์`); return; }
@@ -75,13 +80,13 @@ export default function LoanAttachments({ front, back, pendingFront, pendingBack
         {pendingFront ? <FileItem name={pendingFront.name} size={pendingFront.size} image={pendingFront.type.startsWith("image/")} pending onOpen={() => openPending(pendingFront)} onRemove={onRemoveFront}/>
           : front ? <FileItem name={front.name} size={front.size} image={front.contentType.startsWith("image/")} onOpen={() => onOpenSaved(front)} onRemove={onRemoveFront}/>
           : <p className="rounded-xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500 dark:border-slate-700">ยังไม่ได้แนบเอกสารด้านหน้า</p>}
-        <label className="relative inline-flex min-h-10 cursor-pointer items-center gap-2 overflow-hidden rounded-xl border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:text-blue-300"><Upload size={16}/>{front || pendingFront ? "เปลี่ยนไฟล์" : "เลือกไฟล์ด้านหน้า"}<input type="file" accept={accept} aria-label="เลือกไฟล์ด้านหน้า" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" onChange={chooseFront}/></label>
+        <label className="relative inline-flex min-h-10 has-disabled:cursor-not-allowed has-disabled:opacity-40 cursor-pointer items-center gap-2 overflow-hidden rounded-xl border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:text-blue-300"><Upload size={16}/>{front || pendingFront ? "เปลี่ยนไฟล์" : "เลือกไฟล์ด้านหน้า"}<input disabled={readOnly} type="file" accept={accept} aria-label="เลือกไฟล์ด้านหน้า" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" onChange={chooseFront}/></label>
       </div>
       <div className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
         <div><h4 className="font-semibold">ด้านหลังและเอกสารเพิ่มเติม</h4><p className="text-sm text-slate-500">แนบได้หลายไฟล์ สูงสุด {maxFiles} ไฟล์</p></div>
         {back.length + pendingBack.length ? <div className="space-y-2">{back.map((file, index) => <FileItem key={file.file} name={file.name} size={file.size} image={file.contentType.startsWith("image/")} onOpen={() => onOpenSaved(file)} onRemove={() => onRemoveBack(index, false)}/>)}{pendingBack.map((file, index) => <FileItem key={`${file.name}-${index}`} name={file.name} size={file.size} image={file.type.startsWith("image/")} pending onOpen={() => openPending(file)} onRemove={() => onRemoveBack(index, true)}/>)}</div>
           : <p className="rounded-xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500 dark:border-slate-700">ยังไม่ได้แนบเอกสารด้านหลัง</p>}
-        <label className="relative inline-flex min-h-10 cursor-pointer items-center gap-2 overflow-hidden rounded-xl border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:text-blue-300"><Plus size={16}/> เพิ่มไฟล์ด้านหลัง<input type="file" multiple accept={accept} aria-label="เพิ่มไฟล์ด้านหลัง" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" onChange={chooseBack}/></label>
+        <label className="relative inline-flex min-h-10 has-disabled:cursor-not-allowed has-disabled:opacity-40 cursor-pointer items-center gap-2 overflow-hidden rounded-xl border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:text-blue-300"><Plus size={16}/> เพิ่มไฟล์ด้านหลัง<input disabled={readOnly} type="file" multiple accept={accept} aria-label="เพิ่มไฟล์ด้านหลัง" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" onChange={chooseBack}/></label>
       </div>
     </div>
   </section>;

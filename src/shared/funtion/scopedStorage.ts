@@ -106,11 +106,21 @@ export const scopedStorage = {
       : null;
   },
   setItem(key: string, value: string) {
-    localStorage.setItem(scopedKey(key), value);
+    const fullKey = scopedKey(key);
+    const { uid, version } = effectiveScope();
+    const dirty = uid && localStorage.getItem(`thaiteacher-dirty:${uid}:${version}:${key}`) === "1";
+    // Rerenders and repeated page mounts often write the same preference. Keep
+    // real retries after failure, but do not enqueue an unchanged successful or pending write.
+    if (localStorage.getItem(fullKey) === value && (!dirty || pendingWrites.has(fullKey))) return;
+    localStorage.setItem(fullKey, value);
     queueSync(key, value);
   },
   removeItem(key: string) {
-    localStorage.removeItem(scopedKey(key));
+    const fullKey = scopedKey(key);
+    const { uid, version } = effectiveScope();
+    const dirty = uid && localStorage.getItem(`thaiteacher-dirty:${uid}:${version}:${key}`) === "1";
+    if (localStorage.getItem(fullKey) === null && (!dirty || pendingWrites.has(fullKey))) return;
+    localStorage.removeItem(fullKey);
     queueSync(key, null);
   },
 };

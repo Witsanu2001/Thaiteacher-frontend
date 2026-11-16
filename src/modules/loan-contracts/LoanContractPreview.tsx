@@ -1,3 +1,4 @@
+import { useFinanceReadOnly } from "../../shared/FinanceAccess";
 import { useRef, useState } from "react";
 import { FileDown, Printer, X } from "lucide-react";
 import {
@@ -49,6 +50,7 @@ export default function LoanContractPreview({
   onClose: () => void;
   onPrint: () => void;
 }) {
+  const readOnly = useFinanceReadOnly();
   const pages = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
@@ -59,6 +61,7 @@ export default function LoanContractPreview({
     return rows;
   }, []);
   const exportPdf = async () => {
+    if (readOnly) return;
     if (!pages.current || exporting) return;
     setExporting(true);
     setError("");
@@ -112,14 +115,14 @@ export default function LoanContractPreview({
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => { onPrint(); window.print(); }}
+              title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => { if (!readOnly) { onPrint(); window.print(); } }}
               className="inline-flex items-center gap-2 rounded-lg border border-blue-300 px-3 py-2 text-sm font-semibold text-blue-700 dark:text-blue-300"
             >
               <Printer size={17} /> พิมพ์
             </button>
             <button
               type="button"
-              disabled={exporting}
+              title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly || exporting}
               onClick={() => void exportPdf()}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
             >

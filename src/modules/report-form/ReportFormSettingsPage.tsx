@@ -1,3 +1,4 @@
+import { useFinanceReadOnly } from "../../shared/FinanceAccess";
 import { useEffect, useState, type CSSProperties } from "react";
 import { AlignCenter, AlignLeft, AlignRight, Bold, FileSpreadsheet, Italic, Plus, Trash2, Underline, X } from "lucide-react";
 import ReportPageCanvas from "../../shared/components/ReportPageCanvas";
@@ -29,6 +30,7 @@ export default function ReportFormSettingsPage({
   date: string;
   onPreview?: () => void;
 }) {
+  const readOnly = useFinanceReadOnly();
   const [layout, setLayout] = useState<ReportLayout>(() =>
     loadReportLayout(school),
   );
@@ -56,6 +58,7 @@ export default function ReportFormSettingsPage({
     return () => window.removeEventListener("thaiteacher:tour-step", onTourStep);
   }, [layout]);
   const update = (fn: (draft: ReportLayout) => void) => {
+    if (readOnly) return;
     const draft = structuredClone(layout);
     fn(draft);
     setLayout(draft);
@@ -157,11 +160,13 @@ export default function ReportFormSettingsPage({
           <ReportPageCanvas
             layout={layout}
             date={date}
-            onSlot={(page, row, slot) => {
+            onSlot={readOnly ? undefined : (page, row, slot) => {
+              if (readOnly) return;
               setSelected({ page, row, slot });
               setMenu(null);
             }}
-            onRowMenu={(page, row) => {
+            onRowMenu={readOnly ? undefined : (page, row) => {
+              if (readOnly) return;
               setMenu({ page, row });
               setSelected(null);
             }}
@@ -175,7 +180,7 @@ export default function ReportFormSettingsPage({
         >
           <button
             type="button"
-            onClick={() => addRow(i)}
+            title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => addRow(i)}
             data-tour={i === 0 ? "report-add-row" : undefined}
             className="inline-flex items-center gap-1 rounded-lg border border-blue-300 px-3 py-2 text-sm text-blue-700 dark:text-blue-300"
           >
@@ -184,7 +189,7 @@ export default function ReportFormSettingsPage({
           {layout.pages.length > 1 && (
             <button
               type="button"
-              onClick={() => update((l) => l.pages.splice(i, 1))}
+              title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => update((l) => l.pages.splice(i, 1))}
               className="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600"
             >
               ลบหน้า
@@ -194,7 +199,7 @@ export default function ReportFormSettingsPage({
       ))}
       <button
         type="button"
-        onClick={addPage}
+        title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={addPage}
         data-tour="report-add-page"
         className="my-4 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-blue-300 py-5 text-blue-700 dark:text-blue-300"
       >

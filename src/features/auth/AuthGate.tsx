@@ -1,4 +1,8 @@
+import { clearApiReadCache } from "../../shared/funtion/apiRequestCache";
+import BrandLogo from "../../shared/components/BrandLogo";
+import { FinanceReadOnlyContext } from "../../shared/FinanceAccess";
 import { useEffect, useState, type ReactNode } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   GoogleAuthProvider,
   getRedirectResult,
@@ -9,16 +13,12 @@ import {
   type User,
 } from "firebase/auth";
 import { doc, getDocFromServer, type Timestamp } from "firebase/firestore";
-import { ref, uploadBytes } from "firebase/storage";
 import {
   ArrowRight,
-  Clock3,
   GraduationCap,
-  LogOut,
   ShieldCheck,
-  UploadCloud,
 } from "lucide-react";
-import { auth, db, storage } from "../../config/firebase";
+import { auth, db } from "../../config/firebase";
 import {
   clearScopedDirty,
   clearStorageForUser,
@@ -31,23 +31,22 @@ import {
 } from "../../shared/funtion/scopedStorage";
 import { loadAppState, writeAppState } from "../../config/services/app-state.service";
 import {
-  createPaymentRequest,
   acceptLegal,
   getLegalAcceptance,
-  getPaymentRequests,
   getProfile,
   recordVisit,
   updateProfile,
-  type PaymentRequest,
   type UserProfile,
 } from "../../config/services/users.service";
 import { legalVersion, privacySections, termsIntroduction, termsSections } from "../../shared/legalContent";
 import DemoApp from "./DemoApp";
+import PaymentPage from "../../modules/payments/PaymentPage";
 
 type Profile = Omit<UserProfile, "createdAt" | "paidUntil"> & {
   createdAt: Timestamp | null;
   paidUntil?: Timestamp | null;
 };
+const hasWriteAccess = (value: UserProfile) => value.role === "supperAdmin" || value.plan === "lifetime" || (value.plan === "paid" && Date.parse(value.paidUntil || "") > Date.now()) || (value.plan === "trial" && Date.parse(value.createdAt || "") + (value.trialDays || 9) * DAY > Date.now());
 const visitSessionIds = new Map<string, string>();
 const toProfile = (value: UserProfile): Profile => ({
   ...value,
@@ -68,8 +67,8 @@ const hasRegistration = (
     value.schoolName?.trim(),
   );
 
-async function loadProfile(user: User): Promise<UserProfile> {
-  const apiProfile = await getProfile(user);
+async function loadProfile(user: User, fresh = false): Promise<UserProfile> {
+  const apiProfile = await getProfile(user, fresh);
   const token = await user.getIdTokenResult();
   const profile = {
     ...apiProfile,
@@ -106,8 +105,12 @@ async function loadProfile(user: User): Promise<UserProfile> {
   }
 }
 
-async function syncOwnerState(user: User, version: number) {
+async function syncOwnerState(user: User, version: number, readOnly = false) {
   const remote = await loadAppState(user);
+  if (readOnly) {
+    replaceScopedSnapshot(user.uid, version, remote);
+    return;
+  }
   const local = readScopedSnapshot(user.uid, version);
   const merged = { ...remote };
   for (const [key, value] of Object.entries(local)) {
@@ -137,8 +140,6 @@ async function syncOwnerState(user: User, version: number) {
 }
 
 const DAY = 24 * 60 * 60 * 1000;
-const paymentAmount = Number(import.meta.env.VITE_PAYMENT_AMOUNT || 0);
-const paymentQrUrl = import.meta.env.VITE_PAYMENT_QR_URL || "";
 const field =
   "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white";
 
@@ -156,7 +157,8 @@ export default function AuthGate({
 }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [payments, setPayments] = useState<PaymentRequest[]>([]);
+  const location = useLocation();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -172,7 +174,6 @@ export default function AuthGate({
     position: "",
     schoolName: "",
   });
-  const [slip, setSlip] = useState<File | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -196,13 +197,13 @@ export default function AuthGate({
       configureStorageSync(null);
       setUser(current);
       setProfile(null);
-      setPayments([]);
       setError("");
       setMissingAdminClaim(false);
       setLegalAccepted(null);
       setLegalError("");
       setLegalStep(1);
       if (!current) {
+        clearApiReadCache();
         visitSessionIds.clear();
         setLoading(false);
         return;
@@ -230,7 +231,8 @@ export default function AuthGate({
           clearStorageForUser(current.uid);
         else {
           setStorageUser(current.uid, value.dataVersion || 0);
-          configureStorageSync((uid, key, data) =>
+          const canWrite = hasWriteAccess(value);
+          configureStorageSync(!canWrite ? null : (uid, key, data) =>
             key === "school-finances-v2" ||
             key.startsWith("school-finances-conflict-backup:")
               ? Promise.resolve()
@@ -242,7 +244,7 @@ export default function AuthGate({
                 ),
           );
           try {
-            await syncOwnerState(current, value.dataVersion || 0);
+            await syncOwnerState(current, value.dataVersion || 0, !canWrite);
             if (requestId !== authRequestId) return;
           } catch (syncError) {
             console.error("Failed to sync owner state", syncError);
@@ -261,15 +263,6 @@ export default function AuthGate({
           schoolName: value.schoolName || "",
         });
         setLoading(false);
-        if (value.status === "clearing" || value.status === "cleared") return;
-        try {
-          const paymentItems = await getPaymentRequests(current);
-          if (requestId !== authRequestId) return;
-          setPayments(paymentItems);
-        } catch {
-          if (requestId === authRequestId)
-            setError("เข้าสู่ระบบแล้ว แต่โหลดรายการชำระเงินไม่ได้ กรุณาลองใหม่ภายหลัง");
-        }
       } catch {
         if (requestId === authRequestId) {
           setError("เข้าสู่ระบบ Google แล้ว แต่โหลดโปรไฟล์จาก users-service ไม่สำเร็จ กรุณาตรวจสอบ service และ Firestore");
@@ -296,7 +289,7 @@ export default function AuthGate({
             clearStorageForUser(user.uid);
           else {
             setStorageUser(user.uid, value.dataVersion || 0);
-            await syncOwnerState(user, value.dataVersion || 0);
+            await syncOwnerState(user, value.dataVersion || 0, !hasWriteAccess(value));
           }
           setProfile(toProfile(value));
         })
@@ -379,47 +372,6 @@ export default function AuthGate({
       setBusy(false);
     }
   };
-  const submitSlip = async () => {
-    if (!user || !slip || !paymentAmount || !paymentQrUrl) return;
-    if (
-      !["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(
-        slip.type,
-      ) ||
-      slip.size > 10 * 1024 * 1024
-    ) {
-      setError("แนบไฟล์ JPG, PNG, WebP หรือ PDF ขนาดไม่เกิน 10 MB");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    try {
-      const paymentId = crypto.randomUUID().replaceAll("-", "");
-      const extension =
-        slip.type === "application/pdf"
-          ? "pdf"
-          : slip.type === "image/png"
-            ? "png"
-            : slip.type === "image/webp"
-              ? "webp"
-              : "jpg";
-      const slipPath = `payment-slips/${user.uid}/${paymentId}.${extension}`;
-      await uploadBytes(ref(storage, slipPath), slip, {
-        contentType: slip.type,
-      });
-      const payment = await createPaymentRequest(user, {
-        id: paymentId,
-        amount: paymentAmount,
-        slipPath,
-      });
-      setPayments((current) => [payment, ...current]);
-      setSlip(null);
-    } catch {
-      setError("ส่งสลิปไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   if (loading)
     return (
       <main className="grid min-h-screen place-items-center bg-slate-950 text-white">
@@ -431,11 +383,7 @@ export default function AuthGate({
     return (
       <main className="grid min-h-screen place-items-center bg-slate-50 p-4 dark:bg-slate-950">
         <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 text-slate-800 shadow-xl dark:border-slate-800 dark:bg-slate-900 dark:text-white sm:p-9">
-          <img
-            src="/haiteacher-brand.png"
-            alt="HaiTeacher"
-            className="mx-auto mb-5 w-48 rounded-xl bg-white p-2"
-          />
+          <BrandLogo className="mx-auto mb-5 w-48 object-contain" />
           <h1 className="text-center text-2xl font-bold">
             ยินดีต้อนรับสู่ ThaiTeacher
           </h1>
@@ -516,7 +464,7 @@ export default function AuthGate({
       </main>
     );
 
-  const trialEnd = (profile.createdAt?.toMillis() ?? NaN) + 9 * DAY;
+  const trialEnd = (profile.createdAt?.toMillis() ?? NaN) + (profile.trialDays || 9) * DAY;
   const paidEnd = profile.paidUntil?.toMillis() || 0;
   const plan = profile.plan || (profile.paidUntil ? "paid" : "trial");
   const trialActive =
@@ -547,7 +495,6 @@ export default function AuthGate({
             ? "แพ็กเกจชำระเงินหมดอายุ"
             : "แพ็กเกจทดลองใช้หมดอายุ";
   const complete = hasRegistration(profile);
-  const latestPayment = payments[0];
 
   if (!complete)
     return (
@@ -641,7 +588,7 @@ export default function AuthGate({
       <main className="flex min-h-dvh flex-col bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-white">
         <header className="border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-8">
           <div className="flex w-full items-center justify-between gap-4">
-            <img src="/haiteacher-brand.png" alt="ThaiTeacher" className="h-12 w-auto max-w-40 object-contain" />
+            <BrandLogo className="h-12 w-auto max-w-40 object-contain" />
             <span className="rounded-full bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">ขั้นตอน {legalStep} จาก 2</span>
           </div>
         </header>
@@ -659,106 +606,19 @@ export default function AuthGate({
       </main>
     );
 
-  if (!access)
-    return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 p-4 dark:bg-slate-950">
-        <section className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 sm:p-9">
-          {missingAdminClaim && (
-            <p
-              role="alert"
-              className="mb-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200"
-            >
-              พบ role ผู้ดูแลใน Firestore แต่ Firebase ID token ยังไม่มี custom
-              claim supperAdmin จึงยังไม่สามารถเปิด Dashboard ผู้ดูแลได้
-            </p>
-          )}
-          <div className="mb-5 flex size-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
-            <Clock3 />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            {accessLabel}
-          </h1>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            ข้อมูลของคุณยังอยู่ในระบบ สามารถต่ออายุเพื่อใช้งานต่อได้
-          </p>
-          <div className="mt-6 rounded-2xl bg-blue-50 p-5 dark:bg-blue-950/50">
-            <h2 className="font-semibold text-slate-900 dark:text-white">
-              ชำระค่าบริการ
-            </h2>
-            {paymentAmount > 0 && paymentQrUrl ? (
-              <>
-                <p className="mt-2 text-sm">
-                  ยอดชำระ{" "}
-                  <strong className="text-xl text-blue-700 dark:text-blue-300">
-                    ฿{paymentAmount.toLocaleString("th-TH")}
-                  </strong>
-                </p>
-                <img
-                  src={paymentQrUrl}
-                  alt="QR สำหรับชำระค่าบริการ"
-                  className="mx-auto mt-5 max-h-72 rounded-xl bg-white p-3"
-                />
-                <p className="mt-3 text-center text-xs text-slate-500">
-                  ตรวจสอบชื่อบัญชีปลายทางในแอปธนาคารก่อนโอนเงิน
-                </p>
-              </>
-            ) : (
-              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                กำลังเตรียมราคาและ QR รับชำระเงิน กรุณาติดต่อผู้ดูแลระบบ
-              </p>
-            )}
-          </div>
-          {latestPayment?.status === "pending" && (
-            <p className="mt-4 flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-              <Clock3 size={18} /> ส่งสลิปแล้ว กำลังรอตรวจสอบ
-            </p>
-          )}
-          {latestPayment?.status === "rejected" && (
-            <p className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
-              สลิปก่อนหน้าไม่ผ่านการตรวจสอบ กรุณาส่งใหม่
-            </p>
-          )}
-          {paymentAmount > 0 &&
-            paymentQrUrl &&
-            latestPayment?.status !== "pending" && (
-              <div className="mt-5">
-                <label className="block text-sm font-semibold text-slate-800 dark:text-white">
-                  แนบสลิปการโอนเงิน
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,application/pdf"
-                    onChange={(e) => setSlip(e.target.files?.[0] || null)}
-                    className={`mt-2 ${field}`}
-                  />
-                </label>
-                <p className="mt-2 text-xs text-slate-500">
-                  รองรับ JPG, PNG, WebP และ PDF ไม่เกิน 10 MB
-                  การต่ออายุจะเริ่มหลังผู้ดูแลตรวจสอบสลิป
-                </p>
-                <button
-                  onClick={submitSlip}
-                  disabled={!slip || busy}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white disabled:opacity-50"
-                >
-                  <UploadCloud size={18} /> ส่งสลิปให้ตรวจสอบ
-                </button>
-              </div>
-            )}
-          {error && (
-            <p role="alert" className="mt-4 text-sm text-rose-600">
-              {error}
-            </p>
-          )}
-          <button
-            onClick={() => signOut(auth)}
-            className="mt-6 flex items-center gap-2 text-sm text-slate-500"
-          >
-            <LogOut size={16} /> ออกจากระบบ
-          </button>
-        </section>
-      </main>
-    );
-
+  if (location.pathname === "/billing")
+    return <div className={localStorage.getItem("thaiteacher-theme") === "dark" ? "dark" : ""}>
+      <PaymentPage
+        key={user.uid}
+        user={user}
+        profile={{ displayName: profile.displayName, email: profile.email, schoolName: profile.schoolName }}
+        accessLabel={accessLabel}
+        accessState={accessState}
+        onBack={() => navigate(profile.role === "supperAdmin" ? "/admin/dashboard" : "/finance/school-finance")}
+        onSignOut={() => { void signOut(auth); }}
+        onRefreshAccess={async () => { const updated = await loadProfile(user, true); setProfile(toProfile(updated)); }}
+      />
+    </div>;
   return (
     <>
       {missingAdminClaim && (
@@ -771,6 +631,7 @@ export default function AuthGate({
           Authentication แล้วออกจากระบบและเข้าใหม่
         </div>
       )}
+      <FinanceReadOnlyContext.Provider value={!access && profile.role !== "supperAdmin"}>
       {children(
         profile,
         accessLabel,
@@ -781,6 +642,7 @@ export default function AuthGate({
         user,
         (value) => setProfile(toProfile(value)),
       )}
+      </FinanceReadOnlyContext.Provider>
     </>
   );
 }

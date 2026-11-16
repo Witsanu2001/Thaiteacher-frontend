@@ -1,3 +1,4 @@
+import { useFinanceReadOnly } from "../../shared/FinanceAccess";
 import { useState } from "react";
 import type { User } from "firebase/auth";
 import { createPortal } from "react-dom";
@@ -52,11 +53,13 @@ export default function ExportArchivePage({
   demo: boolean;
   onPreviewCurrent?: () => void;
 }) {
+  const readOnly = useFinanceReadOnly();
   const [items, setItems] = useState<ReportExportRecord[]>(() =>
     loadReportExports(school),
   );
   const [selected, setSelected] = useState<ReportExportRecord | null>(null);
   const remove = (id: string) => {
+    if (readOnly) return;
     if (!window.confirm("ลบประวัติรายการส่งออกนี้?")) return;
     removeReportExport(school, id);
     setItems(loadReportExports(school));
@@ -123,7 +126,7 @@ export default function ExportArchivePage({
                     เปิดตัวอย่าง
                   </button>
                   <button
-                    onClick={() => remove(item.id)}
+                    title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => remove(item.id)}
                     aria-label="ลบประวัติ"
                     className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
                   >

@@ -1,3 +1,4 @@
+import { useFinanceReadOnly } from "../../shared/FinanceAccess";
 import { scopedStorage } from "../../shared/funtion/scopedStorage";
 import { useEffect, useState } from "react";
 import type { User } from "firebase/auth";
@@ -53,6 +54,7 @@ export default function VoucherEvidencePage({
   demo?: boolean;
   tourActive?: boolean;
 }) {
+  const readOnly = useFinanceReadOnly();
   const [entries, setEntries] = useState<Entry[]>(() =>
     readJson<Entry[]>(`school-cashbook:${school}`, []).filter(
       (entry) => fiscalYearOf(entry.date) === fiscalYear,
@@ -101,6 +103,7 @@ export default function VoucherEvidencePage({
     ready: displayEntries.filter((e) => Boolean(vouchers[e.id]?.number)).length,
   };
   const openEditor = (entry: Entry) => {
+    if (readOnly) return;
     setSelected(entry);
     setDraft(
       vouchers[entry.id] || {
@@ -130,6 +133,7 @@ export default function VoucherEvidencePage({
     return () => window.clearTimeout(timer);
   }, [tourActive, selected?.id]);
   const save = () => {
+    if (readOnly) return;
     if (!selected || !draft) return;
     if (!draft.number.trim() || !draft.purpose.trim()) {
       setError("กรอกเลขที่ใบสำคัญและรายการก่อนบันทึก");
@@ -300,7 +304,7 @@ export default function VoucherEvidencePage({
                   </span>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => openEditor(entry)}
+                      title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => openEditor(entry)}
                       className="font-semibold text-blue-700 dark:text-blue-300"
                     >
                       {saved ? "แก้ไข" : "จัดทำ"}
@@ -392,7 +396,7 @@ export default function VoucherEvidencePage({
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
                       <button
-                        onClick={() => openEditor(entry)}
+                        title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => openEditor(entry)}
                         className="rounded-lg px-2 py-2 font-semibold text-blue-700 hover:bg-blue-50 dark:text-blue-300"
                       >
                         {saved ? "แก้ไข" : "จัดทำ"}
@@ -579,7 +583,7 @@ export default function VoucherEvidencePage({
                 <h3 className="font-semibold">ตัวอย่างใบสำคัญ</h3>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => window.print()}
+                    title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => { if (!readOnly) window.print(); }}
                     className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-sm text-white"
                   >
                     <Printer size={16} /> พิมพ์ / PDF

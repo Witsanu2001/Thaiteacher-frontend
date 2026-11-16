@@ -13,8 +13,8 @@ async function headers(user: User) {
 
 const appStateUrl = (viewAsUid?: string) => `${API_URL}/api/v1/schools/finance/app-state${viewAsUid ? `?viewAsUid=${encodeURIComponent(viewAsUid)}` : ""}`;
 
-export async function loadAppState(user: User, viewAsUid?: string): Promise<Record<string, string>> {
-  const response = await axios.get<AppStateSnapshot>(`${appStateUrl(viewAsUid)}${viewAsUid ? "&" : "?"}withVersions=1`, { headers: await headers(user) });
+export async function loadAppState(user: User, viewAsUid?: string, fresh = false): Promise<Record<string, string>> {
+  const response = await axios.get<AppStateSnapshot>(`${appStateUrl(viewAsUid)}${viewAsUid ? "&" : "?"}withVersions=1`, { headers: await headers(user), thaiTeacherFresh: fresh });
   knownVersions.set(scope(user, viewAsUid), new Map(Object.entries(response.data.versions)));
   return response.data.values;
 }

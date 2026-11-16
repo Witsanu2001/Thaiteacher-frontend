@@ -1,9 +1,7 @@
+import { useFinanceReadOnly } from "./FinanceAccess";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
-import {
-  useLocation,
-  useNavigate,
-} from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import Menu from "./MenuSidebar";
 import AuthGate from "../features/auth/AuthGate";
 import AppRoutes from "../app/routes";
@@ -11,18 +9,22 @@ import SupportChatNotifications from "./components/SupportChatNotifications";
 import GuidedTour from "./components/GuidedTour";
 import { loadAppState } from "../config/services/app-state.service";
 import type { UserProfile } from "../config/services/users.service";
-import {
-  replaceScopedSnapshot,
-  setViewingUser,
-} from "./funtion/scopedStorage";
-import {
-  menuConfig,
-  pageFromPath,
-  pathForPage,
-} from "./menu";
+import { replaceScopedSnapshot, setViewingUser } from "./funtion/scopedStorage";
+import { menuConfig, pageFromPath, pathForPage } from "./menu";
 import { useRouteReveal } from "./funtion/useRouteReveal";
 
-type AppProfile = Pick<UserProfile, "displayName" | "email" | "phone" | "position" | "schoolName" | "schoolId" | "dataVersion" | "role" | "tourCompleted">;
+type AppProfile = Pick<
+  UserProfile,
+  | "displayName"
+  | "email"
+  | "phone"
+  | "position"
+  | "schoolName"
+  | "schoolId"
+  | "dataVersion"
+  | "role"
+  | "tourCompleted"
+>;
 type AccessState = "trial" | "paid" | "lifetime" | "expired";
 
 function AppContent({
@@ -40,6 +42,7 @@ function AppContent({
   onSignOut: () => void;
   onProfileSaved: (profile: UserProfile) => void;
 }) {
+  const readOnly = useFinanceReadOnly();
   const isAdmin = profile.role === "supperAdmin";
   const location = useLocation();
   const routerNavigate = useNavigate();
@@ -73,21 +76,28 @@ function AppContent({
     setViewing(null);
     setViewError("");
   }, []);
-  const navigate = useCallback((page: string, incomeExpenseCategory?: string) => {
-    if (page === "Dashboard" || page === "ผู้ใช้งาน" || page === "ลบบัญชีผู้ใช้" || (page === "โปรไฟล์บัญชี" && isAdmin)) stopViewing();
-    const role =
-      isAdmin &&
-      menuConfig.some(
-        (item) => item.label === page && item.role === "superAdmin",
+  const navigate = useCallback(
+    (page: string, incomeExpenseCategory?: string) => {
+      if (
+        page === "Dashboard" ||
+        page === "ผู้ใช้งาน" ||
+        page === "ลบบัญชีผู้ใช้" ||
+        (page === "โปรไฟล์บัญชี" && isAdmin)
       )
-        ? "superAdmin"
-        : "teacher";
-    routerNavigate(pathForPage(page, role), {
-      state: incomeExpenseCategory
-        ? { incomeExpenseCategory }
-        : null,
-    });
-  }, [isAdmin, routerNavigate, stopViewing]);
+        stopViewing();
+      const role =
+        isAdmin &&
+        menuConfig.some(
+          (item) => item.label === page && item.role === "superAdmin",
+        )
+          ? "superAdmin"
+          : "teacher";
+      routerNavigate(pathForPage(page, role), {
+        state: incomeExpenseCategory ? { incomeExpenseCategory } : null,
+      });
+    },
+    [isAdmin, routerNavigate, stopViewing],
+  );
   const startViewing = async (target: UserProfile) => {
     if (
       !isAdmin ||
@@ -121,7 +131,23 @@ function AppContent({
       }
     >
       <div className="min-h-dvh bg-slate-50 text-slate-700 dark:bg-slate-950 dark:text-slate-200 print:min-h-0 print:bg-white">
-        <Menu active={active} onNavigate={navigate} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} displayName={profile.displayName} accessLabel={accessLabel} accessState={accessState} onSignOut={onSignOut} isSupperAdmin={isAdmin} viewingUserName={viewing ? (viewing.displayName || viewing.schoolName || viewing.email) : null} unreadChatCount={unreadChatCount} />
+        <Menu
+          active={active}
+          onNavigate={navigate}
+          mobileOpen={mobileOpen}
+          onClose={() => setMobileOpen(false)}
+          displayName={profile.displayName}
+          accessLabel={accessLabel}
+          accessState={accessState}
+          onSignOut={onSignOut}
+          isSupperAdmin={isAdmin}
+          viewingUserName={
+            viewing
+              ? viewing.displayName || viewing.schoolName || viewing.email
+              : null
+          }
+          unreadChatCount={unreadChatCount}
+        />
         {!isAdmin && (
           <SupportChatNotifications
             user={user}
@@ -137,23 +163,31 @@ function AppContent({
               {viewError}
             </p>
           )}
-            <AppRoutes
-              isAdmin={isAdmin}
-              aiAllowed={isAdmin || accessState === "lifetime"}
-              viewing={viewing}
-              profileSchoolName={profile.schoolName}
-              user={user}
-              accountProfile={profile}
-              onProfileSaved={onProfileSaved}
-              onMenu={() => setMobileOpen(true)}
+
+          <AppRoutes
+            isAdmin={isAdmin}
+            aiAllowed={isAdmin || accessState === "lifetime"}
+            viewing={viewing}
+            profileSchoolName={profile.schoolName}
+            user={user}
+            accountProfile={profile}
+            onProfileSaved={onProfileSaved}
+            onMenu={() => setMobileOpen(true)}
+            dark={dark}
+            onToggleDark={() => setDark((value) => !value)}
+            onNavigate={navigate}
+            onManage={() => navigate("ผู้ใช้งาน")}
+            onView={startViewing}
+            viewBusy={viewBusy}
+          />
+          {!isAdmin && !readOnly && (
+            <GuidedTour
+              accountKey={user.uid}
               dark={dark}
-              onToggleDark={() => setDark((value) => !value)}
-              onNavigate={navigate}
-              onManage={() => navigate("ผู้ใช้งาน")}
-              onView={startViewing}
-              viewBusy={viewBusy}
+              user={user}
+              completedTours={profile.tourCompleted}
             />
-            {!isAdmin && <GuidedTour accountKey={user.uid} dark={dark} user={user} completedTours={profile.tourCompleted} />}
+          )}
         </div>
       </div>
     </div>

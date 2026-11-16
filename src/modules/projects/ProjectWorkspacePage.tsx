@@ -1,3 +1,4 @@
+import { useFinanceReadOnly } from "../../shared/FinanceAccess";
 import { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import {
@@ -85,6 +86,7 @@ function updateDemoExpense(previous?: PreviewExpense, next?: PreviewExpense) {
 }
 
 export default function ProjectWorkspacePage() {
+  const readOnly = useFinanceReadOnly();
   const { fiscalYear, yearReports, user, viewAsUid, demo, tourActive } = useFinancePage();
   const [projects, setProjects] = useState<SchoolProject[]>([]);
   const [expenses, setExpenses] = useState<PreviewExpense[]>([]);
@@ -202,6 +204,7 @@ export default function ProjectWorkspacePage() {
     return saveProject(user, project, projectExpenses, viewAsUid);
   };
   const openEditor = (project?: SchoolProject) => {
+    if (readOnly) return;
     setError("");
     setDraft(
       project
@@ -240,6 +243,7 @@ export default function ProjectWorkspacePage() {
     return () => window.clearTimeout(reset);
   }, [tourActive, selectedId, draft?.id, expenseDraft?.activityId]);
   const saveDraft = async () => {
+    if (readOnly) return;
     if (!draft?.name.trim()) {
       setError("กรอกชื่อโครงการ");
       return;
@@ -314,6 +318,7 @@ export default function ProjectWorkspacePage() {
     finally { setSaving(false); }
   };
   const removeProject = async (project: SchoolProject) => {
+    if (readOnly) return;
     if (expenseFor(project.id).length) {
       setError("โครงการนี้มีค่าใช้จ่ายแล้ว จึงลบไม่ได้");
       return;
@@ -366,6 +371,7 @@ export default function ProjectWorkspacePage() {
     finally { setSaving(false); }
   };
   const saveExpense = async () => {
+    if (readOnly) return;
     if (!selected || !expenseDraft) return;
     const amount = parseMoneyInput(expenseDraft.amount);
     if (
@@ -489,6 +495,7 @@ export default function ProjectWorkspacePage() {
     } catch { setError("อ่านไฟล์แนบไม่สำเร็จ"); }
   };
   const removeExpense = async (entry: PreviewExpense) => {
+    if (readOnly) return;
     if (!selected || !window.confirm("ลบรายการค่าใช้จ่ายนี้?")) return;
     setSaving(true);
     try {
@@ -548,7 +555,7 @@ export default function ProjectWorkspacePage() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => openEditor(selected)}
+                  title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => openEditor(selected)}
                   className={`${button} border border-slate-200 dark:border-slate-700`}
                 >
                   <Pencil size={16} />
@@ -556,7 +563,7 @@ export default function ProjectWorkspacePage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void removeProject(selected)}
+                  title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => void removeProject(selected)}
                   className={`${button} border border-rose-200 text-rose-600 dark:border-rose-900`}
                 >
                   <Trash2 size={16} />
@@ -588,7 +595,7 @@ export default function ProjectWorkspacePage() {
                 <h4 data-tour="project-activities" className="font-bold">กิจกรรมและแหล่งเงิน</h4>
                 <button
                   type="button"
-                  onClick={() => openEditor(selected)}
+                  title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => openEditor(selected)}
                   className="text-sm font-semibold text-blue-600"
                 >
                   + เพิ่มกิจกรรม
@@ -625,7 +632,7 @@ export default function ProjectWorkspacePage() {
                 </div>
                 <button
                   type="button"
-                  disabled={!firstFundedActivity || saving}
+                  title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly || !firstFundedActivity || saving}
                   onClick={() => {
                     setEditingExpenseId(null);
                     setExpenseDraft({
@@ -680,8 +687,8 @@ export default function ProjectWorkspacePage() {
                     <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 dark:border-slate-700">
                       {entry.attachment && <button type="button" onClick={() => void openExpenseAttachment(entry)} className="inline-flex min-w-0 items-center gap-1 text-xs font-semibold text-blue-600"><Paperclip size={14}/><span className="max-w-44 truncate">{entry.attachment.name}</span></button>}
                       <div className="ml-auto flex gap-2">
-                        <button type="button" disabled={entry.id.endsWith("_preview")} onClick={() => { setEditingExpenseId(entry.id); setExpenseDraft({ activityId: entry.activityId, allocationId: entry.allocationId, date: entry.date, category: entry.category, account: entry.account || "", description: entry.description, amount: money(entry.amount), documentNo: entry.documentNo, attachment: entry.attachment }); setError(""); }} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-blue-600 disabled:opacity-40 dark:border-slate-700"><Pencil size={14}/>แก้ไข</button>
-                        <button type="button" disabled={saving || entry.id.endsWith("_preview")} onClick={() => void removeExpense(entry)} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-600 disabled:opacity-40 dark:border-rose-900"><Trash2 size={14}/>ลบ</button>
+                        <button type="button" title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly || entry.id.endsWith("_preview")} onClick={() => { setEditingExpenseId(entry.id); setExpenseDraft({ activityId: entry.activityId, allocationId: entry.allocationId, date: entry.date, category: entry.category, account: entry.account || "", description: entry.description, amount: money(entry.amount), documentNo: entry.documentNo, attachment: entry.attachment }); setError(""); }} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-blue-600 disabled:opacity-40 dark:border-slate-700"><Pencil size={14}/>แก้ไข</button>
+                        <button type="button" title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly || saving || entry.id.endsWith("_preview")} onClick={() => void removeExpense(entry)} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-600 disabled:opacity-40 dark:border-rose-900"><Trash2 size={14}/>ลบ</button>
                       </div>
                     </div>
                   </div>
@@ -700,8 +707,8 @@ export default function ProjectWorkspacePage() {
             <div><h2 className="text-xl font-bold">รายการโครงการ</h2><p className="text-sm text-slate-500">{yearProjects.length} โครงการในปีงบประมาณ {fiscalYear}</p></div>
             <div className="flex flex-wrap gap-2">
               <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(event) => void readFile(event.target.files?.[0])}/>
-              <button type="button" onClick={() => fileRef.current?.click()} className={`${button} border border-blue-200 text-blue-700 dark:border-blue-900 dark:text-blue-300`}><FileSpreadsheet size={17}/>นำเข้า Excel</button>
-              <button type="button" data-tour="project-create" onClick={() => openEditor()} className={`${button} bg-blue-600 text-white`}><Plus size={17}/>เพิ่มโครงการ</button>
+              <button type="button" title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => fileRef.current?.click()} className={`${button} border border-blue-200 text-blue-700 dark:border-blue-900 dark:text-blue-300`}><FileSpreadsheet size={17}/>นำเข้า Excel</button>
+              <button type="button" data-tour="project-create" title={readOnly ? "แพ็กเกจหมดอายุ กรุณาต่ออายุเพื่อใช้งาน" : undefined} disabled={readOnly} onClick={() => openEditor()} className={`${button} bg-blue-600 text-white`}><Plus size={17}/>เพิ่มโครงการ</button>
             </div>
           </div>
           <section aria-label="สรุปงบโครงการ" className="grid gap-3 sm:grid-cols-3">

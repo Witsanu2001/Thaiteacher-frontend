@@ -1,3 +1,4 @@
+import { useFinanceReadOnly } from "../../shared/FinanceAccess";
 import { Plus, Trash2 } from "lucide-react";
 import ThaiDatePicker from "../../shared/components/ThaiDatePicker";
 import { emptyRepayment, loanOutstanding, type LoanContract, type LoanRepayment } from "./loanContract";
@@ -12,16 +13,17 @@ export default function LoanRepayments({ contract, onChange, savedCount, availab
   savedCount: number;
   availableDates: string[];
 }) {
+  const readOnly = useFinanceReadOnly();
   const repayments = contract.repayments || [];
   const patch = (id: string, name: keyof LoanRepayment, value: string) => onChange(repayments.map((item) => item.id === id ? { ...item, [name]: value } : item));
   return <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-6">
     <div data-tour="loan-repayments" className="flex flex-wrap items-start justify-between gap-3">
       <div><h3 className="text-lg font-semibold">รายการส่งใช้เงินยืม</h3><p className="mt-1 text-sm text-slate-500">เมื่อบันทึก จะเพิ่มเป็นรายรับในทะเบียนและรายงานเงินคงเหลือของวันที่ส่งใช้</p></div>
-      <button type="button" disabled={repayments.length >= 19} onClick={() => onChange([...repayments, emptyRepayment()])} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:border-blue-900 dark:text-blue-300"><Plus size={16}/> เพิ่มรายการ</button>
+      <button type="button" disabled={readOnly || repayments.length >= 19} onClick={() => onChange([...repayments, emptyRepayment()])} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:border-blue-900 dark:text-blue-300"><Plus size={16}/> เพิ่มรายการ</button>
     </div>
     {repayments.length ? <div className="space-y-3">{repayments.map((item, index) => <div key={item.id} className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
-      <div className="mb-3 flex items-center justify-between gap-2"><strong className="text-sm">รายการที่ {index + 1}{index < savedCount ? " · บันทึกแล้ว" : ""}</strong>{index >= savedCount && <button type="button" aria-label={`ลบรายการส่งใช้ที่ ${index + 1}`} onClick={() => onChange(repayments.filter((row) => row.id !== item.id))} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950"><Trash2 size={17}/></button>}</div>
-      <fieldset disabled={index < savedCount} className="disabled:opacity-65">
+      <div className="mb-3 flex items-center justify-between gap-2"><strong className="text-sm">รายการที่ {index + 1}{index < savedCount ? " · บันทึกแล้ว" : ""}</strong>{index >= savedCount && <button type="button" disabled={readOnly} aria-label={`ลบรายการส่งใช้ที่ ${index + 1}`} onClick={() => onChange(repayments.filter((row) => row.id !== item.id))} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950"><Trash2 size={17}/></button>}</div>
+      <fieldset disabled={readOnly || index < savedCount} className="disabled:opacity-65">
       <div className="grid gap-3 sm:grid-cols-2">
         <div className={label}><span>วันที่ส่งใช้</span><ThaiDatePicker value={item.date} availableDates={availableDates} onChange={(value) => patch(item.id, "date", value)}/></div>
         <label className={label}>รายการส่งใช้<input className={field} value={item.description} onChange={(event) => patch(item.id, "description", event.target.value)} placeholder="เงินสดหรือเลขที่ใบสำคัญ"/></label>

@@ -16,8 +16,8 @@ async function headers(user: User) {
 
 const budgetUrl = (viewAsUid?: string) => `${API_URL}/api/v1/schools/finance/budget-reports${viewAsUid ? `?viewAsUid=${encodeURIComponent(viewAsUid)}` : ""}`;
 
-export async function loadBudgetReports(user: User, viewAsUid?: string): Promise<DailyReport[]> {
-  const response = await axios.get<StoredBudgetReport[]>(budgetUrl(viewAsUid), { headers: await headers(user) });
+export async function loadBudgetReports(user: User, viewAsUid?: string, fresh = false): Promise<DailyReport[]> {
+  const response = await axios.get<StoredBudgetReport[]>(budgetUrl(viewAsUid), { headers: await headers(user), thaiTeacherFresh: fresh });
   knownVersions.set(scope(user, viewAsUid), new Map(response.data.map(report => [report.date, report.version || ""])));
   return response.data.map(({ date, rows }) => ({ date, rows: rows.map(row => ({ ...row, note: projectRemark(row.note || "") })) }));
 }
