@@ -1,3 +1,4 @@
+import { promotionOf } from "./promotion";
 import AdminPaymentsPanel from "./AdminPaymentsPanel";
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "firebase/auth";
@@ -99,10 +100,13 @@ export default function AdminUsersPage({
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<UserProfile | null>(null);
   const [draft, setDraft] = useState<AdminUserUpdate | null>(null);
+  const [promotionPrice, setPromotionPrice] = useState("99");
+  const [promotionDays, setPromotionDays] = useState("9");
   const [saving, setSaving] = useState(false);
   const [joiningSchoolId, setJoiningSchoolId] = useState("");
   const [joining, setJoining] = useState(false);
-  const [now] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 60000); return () => window.clearInterval(timer); }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,6 +144,8 @@ export default function AdminUsersPage({
     [activeUsers, query],
   );
   const beginEdit = (item: UserProfile) => {
+    setPromotionPrice(String((item.monthlyPriceSatang || 9900) / 100));
+    setPromotionDays(String(item.trialDays || 9));
     setEditing(item);
     setJoiningSchoolId("");
     setDraft({
@@ -179,10 +185,13 @@ export default function AdminUsersPage({
       setError("เลือกวันสิ้นสุดแพ็กเกจชำระเงิน");
       return;
     }
+    const priceSatang = Math.round(Number(promotionPrice)*100);
+    const trialDays = Number(promotionDays);
+    if (!Number.isFinite(Number(promotionPrice)) || priceSatang < 100 || priceSatang > 10000000 || priceSatang % 10 !== 0 || Math.abs(Number(promotionPrice)*100-priceSatang)>0.000001 || !Number.isInteger(trialDays) || trialDays < 1 || trialDays > 365) { setError("ราคาตั้งแต่ 1 ถึง 100,000 บาท เพิ่มทีละ 0.10 บาท และวันทดลองตั้งแต่ 1 ถึง 365 วัน"); return; }
     setSaving(true);
     setError("");
     try {
-      const updated = await adminUpdateUser(user, editing.uid, draft);
+      const updated = await adminUpdateUser(user, editing.uid, { ...draft, monthlyPriceSatang: priceSatang, trialDays });
       setUsers((current) =>
         current.map((item) => (item.uid === updated.uid ? updated : item)),
       );
@@ -286,6 +295,7 @@ export default function AdminUsersPage({
                         <span className="text-slate-400">·</span>{" "}
                         {item.position || "—"}
                       </p>
+                      <div className="rounded-xl bg-blue-50 p-3 text-sm dark:bg-blue-950/30"><p className="text-xs text-slate-500">โปรโมชัน</p><p className="mt-1 font-semibold">{promotionOf(item, now).price}</p>{promotionOf(item, now).trial && <p className="mt-1 text-xs text-slate-500">{promotionOf(item, now).trial}</p>}</div>
                       <div className="flex items-center justify-between gap-2">
                         <span
                           className={`rounded-full px-2.5 py-1 text-xs font-semibold ${status.color}`}
@@ -301,12 +311,13 @@ export default function AdminUsersPage({
                 })}
               </div>
               <div className="hidden overflow-x-auto md:block">
-                <table className="w-full min-w-[760px] text-left text-sm">
+                <table className="w-full min-w-[960px] text-left text-sm">
                   <thead className="bg-slate-50 text-xs text-slate-500 dark:bg-slate-800">
                     <tr>
                       <th className="px-5 py-4">ผู้ใช้</th>
                       <th className="px-5 py-4">โรงเรียน / ตำแหน่ง</th>
                       <th className="px-5 py-4">แพ็กเกจ</th>
+                      <th className="px-5 py-4">โปรโมชัน</th>
                       <th className="px-5 py-4">เริ่มใช้งาน</th>
                       <th className="px-5 py-4 text-right">จัดการ</th>
                     </tr>
@@ -342,6 +353,7 @@ export default function AdminUsersPage({
                               {status.text}
                             </span>
                           </td>
+                          <td className="px-5 py-4 whitespace-nowrap"><p className="font-semibold">{promotionOf(item, now).price}</p>{promotionOf(item, now).trial && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{promotionOf(item, now).trial}</p>}</td>
                           <td className="px-5 py-4 text-slate-500">
                             {dateText(item.createdAt)}
                           </td>

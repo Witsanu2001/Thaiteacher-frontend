@@ -1,3 +1,5 @@
+import SchoolInvitationPage from "../modules/profile/SchoolInvitationPage";
+import WebsiteVisitTracker from "./components/WebsiteVisitTracker";
 import { useFinanceReadOnly } from "./FinanceAccess";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
@@ -195,8 +197,10 @@ function AppContent({
 }
 
 export default function App() {
+  const location = useLocation();
+  if (/^\/invite\/?$/.test(location.pathname)) return <><WebsiteVisitTracker /><SchoolInvitationPage /></>;
   return (
-    <AuthGate>
+    <><WebsiteVisitTracker /><AuthGate>
       {(profile, accessLabel, accessState, onSignOut, user, onProfileSaved) => (
         <AppContent
           key={`${user.uid}:${profile.role}:${profile.schoolId || user.uid}:${profile.dataVersion || 0}`}
@@ -208,6 +212,6 @@ export default function App() {
           onProfileSaved={onProfileSaved}
         />
       )}
-    </AuthGate>
+    </AuthGate></>
   );
 }

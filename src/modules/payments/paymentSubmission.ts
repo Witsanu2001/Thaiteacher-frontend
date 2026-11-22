@@ -2,10 +2,9 @@ import type { User } from "firebase/auth";
 import { getMetadata, ref, uploadBytes } from "firebase/storage";
 import { storage } from "../../config/firebase";
 import { createPaymentRequest, getPaymentRequests, type PaymentRequest } from "../../config/services/payments.service";
-import { paymentConfig } from "./paymentConfig";
 
 export type ValidatedSlip = { file: File; contentType: string; extension: string };
-export type PaymentAttempt = { id: string; path: string; uid: string; slip: ValidatedSlip; uploadStarted: boolean; uploaded: boolean; submitted: boolean };
+export type PaymentAttempt = { amount: number; id: string; path: string; uid: string; slip: ValidatedSlip; uploadStarted: boolean; uploaded: boolean; submitted: boolean };
 
 export async function validateSlip(file: File): Promise<ValidatedSlip> {
   if (!file.size || file.size >= 10 * 1024 * 1024) throw new Error("เลือกไฟล์ขนาดน้อยกว่า 10 MB และไม่ใช่ไฟล์ว่าง");
@@ -21,9 +20,9 @@ export async function validateSlip(file: File): Promise<ValidatedSlip> {
   return { file, contentType, extension };
 }
 
-export function newPaymentAttempt(uid: string, slip: ValidatedSlip): PaymentAttempt {
+export function newPaymentAttempt(uid: string, slip: ValidatedSlip, amount: number): PaymentAttempt {
   const id = crypto.randomUUID().replaceAll("-", "");
-  return { id, uid, path: `payment-slips/${uid}/${id}.${slip.extension}`, slip, uploadStarted: false, uploaded: false, submitted: false };
+  return { amount, id, uid, path: `payment-slips/${uid}/${id}.${slip.extension}`, slip, uploadStarted: false, uploaded: false, submitted: false };
 }
 
 export async function submitPayment(user: User, attempt: PaymentAttempt, onStage: (stage: "uploading" | "submitting") => void): Promise<PaymentRequest> {
@@ -53,7 +52,7 @@ export async function submitPayment(user: User, attempt: PaymentAttempt, onStage
   onStage("submitting");
   attempt.submitted = true;
   try {
-    return await createPaymentRequest(user, { id: attempt.id, amount: paymentConfig.amount, slipPath: attempt.path });
+    return await createPaymentRequest(user, { id: attempt.id, amount: attempt.amount, slipPath: attempt.path });
   } catch (error) {
     // A successful write must not become a duplicate after a network timeout.
     try {

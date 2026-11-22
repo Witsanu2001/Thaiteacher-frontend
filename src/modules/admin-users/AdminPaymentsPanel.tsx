@@ -16,6 +16,7 @@ import {
 import {
   getAdminPayments,
   getAdminPaymentSlip,
+  analyzePaymentSlip,
   reviewPayment,
   type AdminPayment,
 } from "../../config/services/payments.service";
@@ -64,6 +65,42 @@ export default function AdminPaymentsPanel({
     [reviewError, setReviewError] = useState(""),
     [message, setMessage] = useState("");
   const lock = useRef(false);
+  const analysisLock = useRef(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
+  const analyze = async () => {
+    if (!selected || analysisLock.current) return;
+    const payment = selected;
+    analysisLock.current = true;
+    setAnalyzing(true);
+    setAnalysisError("");
+    try {
+      const analysis = await analyzePaymentSlip(user, payment);
+      setSelected(current => current?.id === payment.id && current.uid === payment.uid
+        ? { ...current, analysis } : current);
+      setItems(current => current.map(item => item.id === payment.id && item.uid === payment.uid
+        ? { ...item, analysis } : item));
+    } catch (cause) {
+      const code = axios.isAxiosError(cause) ? cause.response?.data?.error : "";
+      const messages: Record<string, string> = {
+        slip_analysis_not_configured: "ยังไม่ได้ตั้งค่า Gemini สำหรับอ่านสลิปที่เซิร์ฟเวอร์",
+        slip_analysis_rate_limited: "Gemini จำกัดจำนวนคำขอหรือโควตาเต็ม กรุณาตรวจโควตา API ก่อนลองใหม่",
+        slip_analysis_access_denied: "Gemini ปฏิเสธ API key หรือสิทธิ์เรียกใช้งาน กรุณาตรวจการตั้งค่าเซิร์ฟเวอร์",
+        slip_analysis_model_unavailable: "ไม่พบโมเดล Gemini ที่ตั้งไว้ หรือโมเดลนี้ใช้งานไม่ได้",
+        slip_analysis_request_rejected: "Gemini ไม่รับคำขออ่านไฟล์นี้ กรุณาให้ทีมงานตรวจรูปแบบคำขอ",
+        slip_analysis_timeout: "รอ Gemini เกินเวลาที่กำหนด กรุณาลองใหม่ภายหลัง",
+        slip_analysis_connection_failed: "เซิร์ฟเวอร์เชื่อมต่อ Gemini ไม่สำเร็จ กรุณาตรวจเครือข่าย",
+        slip_analysis_output_incomplete: "Gemini ส่งผลกลับมาไม่ครบ กรุณาตรวจสลิปด้วยตนเอง",
+        slip_analysis_content_blocked: "Gemini ไม่สามารถประมวลผลภาพนี้ได้ กรุณาตรวจสลิปด้วยตนเอง",
+        slip_analysis_invalid_response: "ผลอ่านจาก Gemini ไม่อยู่ในรูปแบบที่ระบบรับได้ กรุณาตรวจสลิปด้วยตนเอง",
+        slip_analysis_provider_unavailable: "บริการ Gemini ยังไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง",
+      };
+      setAnalysisError(messages[code] ?? "อ่านสลิปไม่สำเร็จ กรุณาลองใหม่ หรือตรวจสลิปด้วยตนเอง");
+    } finally {
+      analysisLock.current = false;
+      setAnalyzing(false);
+    }
+  };
   const refresh = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -91,11 +128,13 @@ export default function AdminPaymentsPanel({
       active = false;
     };
   }, [user]);
+  const selectedUID = selected?.uid;
+  const selectedID = selected?.id;
   useEffect(() => {
-    if (!selected) return;
+    if (!selectedUID || !selectedID) return;
     let active = true,
       url = "";
-    void getAdminPaymentSlip(user, selected)
+    void getAdminPaymentSlip(user, { uid: selectedUID, id: selectedID })
       .then((blob) => {
         if (!active) return;
         url = URL.createObjectURL(blob);
@@ -112,7 +151,7 @@ export default function AdminPaymentsPanel({
       active = false;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [selected, user]);
+  }, [selectedUID, selectedID, user]);
   const open = (payment: AdminPayment) => {
     setSelected(payment);
     setSlip(null);
@@ -121,12 +160,13 @@ export default function AdminPaymentsPanel({
     setDecision(null);
     setReason("");
     setReviewError("");
+    setAnalysisError("");
   };
   const confirm = async () => {
     if (
       !selected ||
       !decision ||
-      lock.current ||
+      lock.current || analyzing ||
       (!slip && decision === "approved")
     )
       return;
@@ -190,7 +230,7 @@ export default function AdminPaymentsPanel({
             <p className="mt-1 text-sm text-slate-500">
               รอตรวจสอบ{" "}
               {items.filter((item) => item.status === "pending").length} รายการ
-              · 99 บาท / 1 เดือน
+              · ต่ออายุ 1 เดือน ตามราคาที่ล็อกในรายการ
             </p>
           </div>
         </div>
@@ -328,7 +368,7 @@ export default function AdminPaymentsPanel({
                 </h2>
                 <button
                   aria-label="ปิดการตรวจสอบ"
-                  disabled={busy}
+                  disabled={busy || analyzing}
                   onClick={() => setSelected(null)}
                   className="rounded-lg p-2"
                 >
@@ -399,10 +439,46 @@ export default function AdminPaymentsPanel({
                       )}
                     </p>
                   )}
+                  <div className="space-y-3 rounded-xl border border-slate-200 p-4 text-sm dark:border-slate-700">
+                    <h3 className="font-bold">Gemini ช่วยอ่านสลิป</h3>
+                    <p className="text-xs leading-5 text-slate-500">
+                      อ่านข้อมูลจากไฟล์ ไม่ใช่การยืนยันเงินเข้าจริง กรุณาตรวจบัญชีรับเงินก่อนอนุมัติ
+                    </p>
+                    {selected.analysis ? (
+                      <>
+                        <p className={selected.analysis.amountMatches
+                          ? "font-semibold text-emerald-600 dark:text-emerald-300"
+                          : "font-semibold text-amber-700 dark:text-amber-300"}>
+                          {!selected.analysis.isSlip ? "ไม่พบสลิปโอนเงินที่อ่านได้ชัดเจน"
+                            : selected.analysis.amountMatches ? "ยอดที่อ่านได้ตรงกับยอดแจ้งชำระ"
+                            : "ยอดไม่ตรง หรืออ่านยอด/สกุลเงินไม่ได้"}
+                        </p>
+                        <dl className="space-y-2 break-words">
+                          <div><dt className="text-slate-500">ยอดที่อ่านได้</dt><dd>{selected.analysis.amountSatang == null ? "อ่านไม่ได้" : `${money(selected.analysis.amountSatang / 100)} ${selected.analysis.currency || "(ไม่ทราบสกุลเงิน)"}`}</dd></div>
+                          <div><dt className="text-slate-500">ผู้รับ</dt><dd>{selected.analysis.receiver || "อ่านไม่ได้"}</dd></div>
+                          <div><dt className="text-slate-500">วันเวลาในสลิป</dt><dd>{selected.analysis.transferredAt || "อ่านไม่ได้"}</dd></div>
+                          <div><dt className="text-slate-500">เลขอ้างอิง</dt><dd>{selected.analysis.reference || "อ่านไม่ได้"}</dd></div>
+                        </dl>
+                        {selected.analysis.notes && <p className="text-slate-500">{selected.analysis.notes}</p>}
+                        <p className="text-xs text-slate-500">อ่านเมื่อ {date(selected.analysis.analyzedAt)}</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xs text-slate-500">เมื่อกด ระบบจะส่งไฟล์สลิปให้ Google Gemini เพื่ออ่านข้อมูล</p>
+                        <button type="button" disabled={analyzing || busy || slipLoading || !slip}
+                          onClick={() => void analyze()}
+                          className="flex w-full items-center justify-center gap-2 rounded-lg border border-blue-200 px-3 py-2 font-semibold text-blue-600 disabled:opacity-40 dark:border-blue-900 dark:text-blue-300">
+                          {analyzing && <Loader2 size={16} className="animate-spin" />}
+                          {analyzing ? "กำลังอ่านสลิป…" : "ให้ Gemini อ่านสลิป"}
+                        </button>
+                      </>
+                    )}
+                    {analysisError && <p role="alert" className="text-rose-600">{analysisError}</p>}
+                  </div>
                   {selected.status === "pending" && (
                     <>
                       <p className="text-sm leading-6 text-slate-500">
-                        ตรวจยอด 99 บาทและการรับเงินจริงก่อนอนุมัติ ระบบต่ออายุ 1
+                        ตรวจยอด {selected.amount.toLocaleString("th-TH", {minimumFractionDigits:2})} บาทและการรับเงินจริงก่อนอนุมัติ ระบบต่ออายุ 1
                         เดือนจากวันหมดอายุเดิม หรือวันอนุมัติหากหมดสิทธิ์แล้ว
                       </p>
                       {!decision ? (
@@ -410,7 +486,7 @@ export default function AdminPaymentsPanel({
                           <button
                             type="button"
                             disabled={
-                              slipLoading || !slip || selected.amount !== 99
+                              analyzing || slipLoading || !slip || selected.amount <= 0
                             }
                             onClick={() => setDecision("approved")}
                             className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white"
@@ -420,6 +496,7 @@ export default function AdminPaymentsPanel({
                           </button>
                           <button
                             type="button"
+                            disabled={analyzing}
                             onClick={() => setDecision("rejected")}
                             className="rounded-xl border border-rose-200 px-4 py-3 font-semibold text-rose-600 dark:border-rose-900"
                           >

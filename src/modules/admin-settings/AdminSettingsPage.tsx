@@ -21,6 +21,7 @@ export default function AdminSettingsPage({
 }) {
   const [settings, setSettings] = useState<SystemSettings | null>(null),
     [days, setDays] = useState("9"),
+    [price, setPrice] = useState("99"),
     [loading, setLoading] = useState(true),
     [saving, setSaving] = useState(false),
     [error, setError] = useState(""),
@@ -32,6 +33,7 @@ export default function AdminSettingsPage({
         if (active) {
           setSettings(value);
           setDays(String(value.trialDays));
+          setPrice(String((value.monthlyPriceSatang || 9900) / 100));
         }
       })
       .catch(() => {
@@ -50,15 +52,18 @@ export default function AdminSettingsPage({
       setError("กำหนดระยะเวลาทดลองตั้งแต่ 1 ถึง 365 วัน");
       return;
     }
+    const satang = Math.round(Number(price) * 100);
+    if (!Number.isFinite(Number(price)) || satang < 100 || satang > 10000000 || satang % 10 !== 0 || Math.abs(Number(price)*100-satang)>0.000001) { setError("ราคาตั้งแต่ 1 ถึง 100,000 บาท เพิ่มทีละ 0.10 บาท เพื่อหาร 10 ได้ลงตัว"); return; }
     setSaving(true);
     setError("");
     setSuccess("");
     try {
-      const updated = await saveSystemSettings(user, value);
+      const updated = await saveSystemSettings(user, value, satang);
       setSettings(updated);
       setDays(String(updated.trialDays));
+      setPrice(String(updated.monthlyPriceSatang / 100));
       setPublicTrialDays(updated.trialDays);
-      setSuccess("บันทึกแล้ว บัญชีที่สมัครใหม่จะได้รับระยะเวลาทดลองตามนี้");
+      setSuccess("บันทึกแล้ว บัญชีใหม่จะได้รับวันทดลองและราคานี้ บัญชีเดิมคงสิทธิ์เดิม");
     } catch {
       setError("บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง");
     } finally {
@@ -89,7 +94,7 @@ export default function AdminSettingsPage({
                 <Clock3 />
               </span>
               <div>
-                <h2 className="text-xl font-bold">ระยะเวลาทดลองใช้งาน</h2>
+                <h2 className="text-xl font-bold">สิทธิ์เริ่มต้นและราคาแพ็กเกจ</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   กำหนดสิทธิ์เริ่มต้นสำหรับบัญชีใหม่
                 </p>
@@ -122,11 +127,15 @@ export default function AdminSettingsPage({
                   <span>วัน</span>
                 </div>
               </label>
+              <label className="grid max-w-sm gap-2 text-sm font-semibold">ราคาแพ็กเกจโรงเรียนต่อเดือน (บาท)
+                <input type="number" min={1} max={100000} step="0.1" value={price} onChange={event => { setPrice(event.target.value); setSuccess(""); }} disabled={saving || !settings} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-lg dark:border-slate-700 dark:bg-slate-800" />
+                <span className="text-xs font-normal text-slate-500">ครอบคลุม 10 บัญชี · สมาชิกที่เลือกจ่ายเอง {(Number(price)/10).toLocaleString("th-TH", { minimumFractionDigits:2, maximumFractionDigits:2 })} บาท/คน/เดือน (หาร 10 คงที่)</span>
+              </label>
               <div className="flex items-start gap-2 rounded-xl bg-blue-50 p-4 text-sm leading-6 text-blue-900 dark:bg-blue-950/50 dark:text-blue-200">
                 <ShieldCheck size={20} className="mt-0.5 shrink-0" />
                 <p>
                   เริ่มนับจากวันสร้างบัญชีครั้งแรก การเปลี่ยนค่านี้มีผลเฉพาะบัญชีที่สมัครใหม่
-                  บัญชีเดิมยังใช้ระยะเวลาที่ได้รับไว้ และไม่กระทบแพ็กเกจชำระเงินหรือฟรีตลอดชีพ
+                  วันทดลองและราคาถูกล็อกตอนสมัคร บัญชีเดิมยังได้ราคาเดิมตลอดไป แม้ต่ออายุหลังหมดแพ็กเกจ และยังใช้ระยะเวลาที่ได้รับไว้ และไม่กระทบแพ็กเกจชำระเงินหรือฟรีตลอดชีพ
                 </p>
               </div>
               {settings?.updatedAt && (
@@ -150,7 +159,7 @@ export default function AdminSettingsPage({
               <button
                 type="submit"
                 disabled={
-                  saving || !settings || Number(days) === settings.trialDays
+                  saving || !settings || (Number(days) === settings.trialDays && Math.round(Number(price)*100) === (settings.monthlyPriceSatang || 9900))
                 }
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
               >

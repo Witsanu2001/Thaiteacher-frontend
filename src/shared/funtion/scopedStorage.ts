@@ -3,6 +3,7 @@ let currentDataVersion = 0;
 let viewingUserId: string | null = null;
 let viewingDataVersion = 0;
 let syncChange: ((uid: string, key: string, value: string | null) => Promise<void>) | null = null;
+let syncGeneration = 0;
 const pendingWrites = new Map<string, Promise<void>>();
 
 export function setViewingUser(userId: string | null, dataVersion = 0) {
@@ -10,7 +11,7 @@ export function setViewingUser(userId: string | null, dataVersion = 0) {
   viewingDataVersion = dataVersion;
 }
 
-export function configureStorageSync(callback: typeof syncChange) { syncChange = callback; }
+export function configureStorageSync(callback: typeof syncChange) { syncGeneration++; syncChange = callback; }
 
 function effectiveScope() {
   return { uid: viewingUserId || currentUserId, version: viewingUserId ? viewingDataVersion : currentDataVersion };
@@ -29,8 +30,9 @@ function queueSync(key: string, value: string | null) {
   const dirtyKey = `thaiteacher-dirty:${uid}:${version}:${key}`;
   localStorage.setItem(dirtyKey, "1");
   const callback = syncChange;
+  const generation = syncGeneration;
   const prior = pendingWrites.get(fullKey) || Promise.resolve();
-  const next = prior.catch(() => {}).then(() => callback(uid, key, value)).then(() => {
+  const next = prior.catch(() => {}).then(() => generation === syncGeneration ? callback(uid, key, value) : undefined).then(() => {
     if (localStorage.getItem(fullKey) === value) localStorage.removeItem(dirtyKey);
   }).catch(() => { window.dispatchEvent(new Event("app-state-sync-error")); });
   pendingWrites.set(fullKey, next);
@@ -88,7 +90,9 @@ function scopedKey(key: string) {
 export function clearStorageForUser(userId: string) {
   const prefix = `thaiteacher-user:${userId}:`;
   const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter((key): key is string => Boolean(key));
-  for (const key of keys) if (key.startsWith(prefix)) localStorage.removeItem(key);
+  for (const key of keys) if (key.startsWith(prefix)
+    || key.startsWith(`thaiteacher-dirty:${userId}:`)
+    || key.startsWith(`thaiteacher-conflict-backup:${userId}:`)) localStorage.removeItem(key);
   if (localStorage.getItem("thaiteacher-legacy-owner") === userId) {
     for (const key of keys) if (key.startsWith("school-")) localStorage.removeItem(key);
     localStorage.removeItem("thaiteacher-legacy-owner");

@@ -1,18 +1,17 @@
+import { signInWithGoogle } from "./signInWithGoogle";
 import { clearApiReadCache } from "../../shared/funtion/apiRequestCache";
 import BrandLogo from "../../shared/components/BrandLogo";
-import { FinanceReadOnlyContext } from "../../shared/FinanceAccess";
-import { useEffect, useState, type ReactNode } from "react";
+import { BillingPriceContext, FinanceReadOnlyContext } from "../../shared/FinanceAccess";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  GoogleAuthProvider,
   getRedirectResult,
   onAuthStateChanged,
-  signInWithPopup,
-  signInWithRedirect,
   signOut,
   type User,
 } from "firebase/auth";
-import { doc, getDocFromServer, type Timestamp } from "firebase/firestore";
+import { doc, getDocFromServer, onSnapshot, type Timestamp } from "firebase/firestore";
+import SchoolRemovalPopup from "./SchoolRemovalPopup";
 import {
   ArrowRight,
   GraduationCap,
@@ -46,15 +45,15 @@ type Profile = Omit<UserProfile, "createdAt" | "paidUntil"> & {
   createdAt: Timestamp | null;
   paidUntil?: Timestamp | null;
 };
-const hasWriteAccess = (value: UserProfile) => value.role === "supperAdmin" || value.plan === "lifetime" || (value.plan === "paid" && Date.parse(value.paidUntil || "") > Date.now()) || (value.plan === "trial" && Date.parse(value.createdAt || "") + (value.trialDays || 9) * DAY > Date.now());
+const hasWriteAccess = (value: UserProfile) => typeof value.accessGranted === "boolean" ? value.accessGranted : value.role === "supperAdmin" || value.plan === "lifetime" || (value.plan === "paid" && Date.parse(value.paidUntil || "") > Date.now()) || (value.plan === "trial" && Date.parse(value.createdAt || "") + (value.trialDays || 9) * DAY > Date.now());
 const visitSessionIds = new Map<string, string>();
 const toProfile = (value: UserProfile): Profile => ({
   ...value,
   createdAt: value.createdAt
     ? ({ toMillis: () => new Date(value.createdAt!).getTime() } as Timestamp)
     : null,
-  paidUntil: value.paidUntil
-    ? ({ toMillis: () => new Date(value.paidUntil!).getTime() } as Timestamp)
+  paidUntil: (value.accessPaidUntil || value.paidUntil)
+    ? ({ toMillis: () => new Date((value.accessPaidUntil || value.paidUntil)!).getTime() } as Timestamp)
     : null,
 });
 
@@ -80,7 +79,7 @@ async function loadProfile(user: User, fresh = false): Promise<UserProfile> {
   if (profile.uid && profile.uid !== user.uid)
     throw new Error("profile_uid_mismatch");
   if (
-    hasRegistration(profile) ||
+    profile.schoolRemovalId || hasRegistration(profile) ||
     profile.status === "clearing" ||
     profile.status === "cleared"
   )
@@ -105,8 +104,9 @@ async function loadProfile(user: User, fresh = false): Promise<UserProfile> {
   }
 }
 
-async function syncOwnerState(user: User, version: number, readOnly = false) {
+async function syncOwnerState(user: User, version: number, readOnly = false, active = () => true) {
   const remote = await loadAppState(user);
+  if (!active()) return;
   if (readOnly) {
     replaceScopedSnapshot(user.uid, version, remote);
     return;
@@ -114,6 +114,7 @@ async function syncOwnerState(user: User, version: number, readOnly = false) {
   const local = readScopedSnapshot(user.uid, version);
   const merged = { ...remote };
   for (const [key, value] of Object.entries(local)) {
+    if (!active()) return;
     if (
       key === "school-finances-v2" ||
       key.startsWith("school-finances-conflict-backup:")
@@ -136,7 +137,7 @@ async function syncOwnerState(user: User, version: number, readOnly = false) {
       merged[key] = value;
     }
   }
-  replaceScopedSnapshot(user.uid, version, merged);
+  if (active()) replaceScopedSnapshot(user.uid, version, merged);
 }
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -157,6 +158,8 @@ export default function AuthGate({
 }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [removal, setRemoval] = useState<{ id: string; school: string } | null>(null);
+  const removalRef = useRef(false);
   const location = useLocation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -197,6 +200,8 @@ export default function AuthGate({
       configureStorageSync(null);
       setUser(current);
       setProfile(null);
+      removalRef.current = false;
+      setRemoval(null);
       setError("");
       setMissingAdminClaim(false);
       setLegalAccepted(null);
@@ -227,7 +232,8 @@ export default function AuthGate({
             /* The account still uses its verified token role. */
           }
         }
-        if (value.status === "clearing" || value.status === "cleared")
+        if (removalRef.current) { setLoading(false); return; }
+        if (value.schoolRemovalId || value.status === "clearing" || value.status === "cleared")
           clearStorageForUser(current.uid);
         else {
           setStorageUser(current.uid, value.dataVersion || 0);
@@ -244,7 +250,7 @@ export default function AuthGate({
                 ),
           );
           try {
-            await syncOwnerState(current, value.dataVersion || 0, !canWrite);
+            await syncOwnerState(current, value.dataVersion || 0, !canWrite, () => !removalRef.current);
             if (requestId !== authRequestId) return;
           } catch (syncError) {
             console.error("Failed to sync owner state", syncError);
@@ -278,6 +284,29 @@ export default function AuthGate({
 
   useEffect(() => {
     if (!user) return;
+    let active = true;
+    const target = doc(db, "users", user.uid);
+    const check = (data: Record<string, unknown> | undefined) => {
+      if (!active || typeof data?.schoolRemovalId !== "string" || !data.schoolRemovalId) return;
+      removalRef.current = true;
+      configureStorageSync(null);
+      setViewingUser(null);
+      clearStorageForUser(user.uid);
+      clearApiReadCache();
+      setRemoval({ id: data.schoolRemovalId, school: typeof data.schoolRemovedFrom === "string" ? data.schoolRemovedFrom : "" });
+    };
+    const unsubscribe = onSnapshot(target, snapshot => check(snapshot.data()), () => {
+      // A focus check below also retries after a temporary listener failure.
+    });
+    const focus = () => {
+      if (document.visibilityState === "visible") void getDocFromServer(target).then(snapshot => check(snapshot.data())).catch(() => undefined);
+    };
+    document.addEventListener("visibilitychange", focus);
+    return () => { active = false; unsubscribe(); document.removeEventListener("visibilitychange", focus); };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
     const refreshInterval = 10 * 60_000;
     let lastRefreshAt = Date.now();
     const refresh = () => {
@@ -285,11 +314,12 @@ export default function AuthGate({
       lastRefreshAt = Date.now();
       void loadProfile(user)
         .then(async (value) => {
+          if (removalRef.current || value.schoolRemovalId) return;
           if (value.status === "clearing" || value.status === "cleared")
             clearStorageForUser(user.uid);
           else {
             setStorageUser(user.uid, value.dataVersion || 0);
-            await syncOwnerState(user, value.dataVersion || 0, !hasWriteAccess(value));
+            await syncOwnerState(user, value.dataVersion || 0, !hasWriteAccess(value), () => !removalRef.current);
           }
           setProfile(toProfile(value));
         })
@@ -337,15 +367,7 @@ export default function AuthGate({
     setBusy(true);
     setError("");
     try {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: "select_account" });
-      const isIPadOrIPhone = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-      if (isIPadOrIPhone && window.location.hostname === "thaiteacher-app.web.app") {
-        await signInWithRedirect(auth, provider);
-      } else {
-        await signInWithPopup(auth, provider);
-      }
+      await signInWithGoogle();
     } catch (authError) {
       console.error("Google sign-in failed", authError);
       setError("เข้าสู่ระบบด้วย Google ไม่สำเร็จ กรุณาลองอีกครั้ง หากเปิดผ่าน Messenger ให้เปิดใน Safari โดยตรง");
@@ -363,7 +385,8 @@ export default function AuthGate({
         displayName: form.displayName.trim(),
         phone: form.phone.trim(),
         position: form.position.trim(),
-        schoolName: form.schoolName.trim(),
+        schoolName: profile?.schoolId && profile.schoolId !== user.uid
+          ? profile.schoolName : form.schoolName.trim(),
       });
       setProfile(toProfile(value));
     } catch {
@@ -372,6 +395,7 @@ export default function AuthGate({
       setBusy(false);
     }
   };
+  if (user && removal) return <SchoolRemovalPopup key={removal.id} user={user} id={removal.id} school={removal.school} />;
   if (loading)
     return (
       <main className="grid min-h-screen place-items-center bg-slate-950 text-white">
@@ -471,20 +495,20 @@ export default function AuthGate({
     plan === "trial" && Number.isFinite(trialEnd) && now < trialEnd;
   const paidActive = plan === "paid" && paidEnd > now;
   const lifetimeActive = plan === "lifetime";
-  const access =
+  const access = typeof profile.accessGranted === "boolean" ? profile.accessGranted || profile.role === "supperAdmin" :
     trialActive ||
     paidActive ||
     lifetimeActive ||
     profile.role === "supperAdmin";
   const daysLeft = Math.max(0, Math.ceil((trialEnd - now) / DAY));
-  const accessState = lifetimeActive
+  const accessState = profile.accessPlan || (lifetimeActive
     ? "lifetime"
     : paidActive
       ? "paid"
       : trialActive
         ? "trial"
-        : "expired";
-  const accessLabel =
+        : "expired");
+  const accessLabel = profile.billingMode === "sponsored" ? (access ? "ใช้สิทธิ์แพ็กเกจของบัญชีหลัก" : "บัญชีหลักยังไม่มีแพ็กเกจที่ใช้งานได้") : profile.billingMode === "individual" && !access ? "แพ็กเกจจ่ายเองยังไม่พร้อมใช้งาน กรุณาชำระหรือต่ออายุ" :
     accessState === "lifetime"
       ? "แพ็กเกจฟรีตลอดชีพ"
       : accessState === "paid"
@@ -510,7 +534,9 @@ export default function AuthGate({
             ข้อมูลสำหรับเริ่มใช้งาน
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            กรอกข้อมูลส่วนตัวและโรงเรียนเพียงครั้งแรก
+            {profile.schoolId && profile.schoolId !== user?.uid
+              ? "กรอกข้อมูลส่วนตัว โรงเรียนกำหนดตามคำเชิญที่คุณรับแล้ว"
+              : "กรอกข้อมูลส่วนตัวและโรงเรียนเพียงครั้งแรก"}
           </p>
           <p className="mt-2 text-xs text-slate-500">
             หากเคยลงทะเบียนแล้ว โปรดตรวจว่ากำลังใช้บัญชี Google เดิม
@@ -540,12 +566,19 @@ export default function AuthGate({
               ชื่อโรงเรียน
               <input
                 required
-                value={form.schoolName}
+                value={profile.schoolId && profile.schoolId !== user?.uid ? profile.schoolName : form.schoolName}
+                readOnly={Boolean(profile.schoolId && profile.schoolId !== user?.uid)}
+                aria-describedby={profile.schoolId && profile.schoolId !== user?.uid ? "invited-school-note" : undefined}
                 onChange={(e) =>
                   setForm({ ...form, schoolName: e.target.value })
                 }
-                className={`mt-1.5 ${field}`}
+                className={`mt-1.5 ${field} ${profile.schoolId && profile.schoolId !== user?.uid ? "cursor-default !bg-slate-100 !text-slate-500 dark:!bg-slate-800 dark:!text-slate-400" : ""}`}
               />
+              {profile.schoolId && profile.schoolId !== user?.uid && (
+                <span id="invited-school-note" className="mt-2 block text-xs font-normal text-slate-500 dark:text-slate-400">
+                  โรงเรียนจากคำเชิญ · ดูได้อย่างเดียว สมาชิกไม่สามารถเปลี่ยนชื่อหรือย้ายโรงเรียนเองได้
+                </span>
+              )}
             </label>
             <label className="text-sm font-medium dark:text-slate-200 sm:col-span-2">
               เบอร์โทรศัพท์ (ไม่บังคับ)
@@ -631,6 +664,7 @@ export default function AuthGate({
           Authentication แล้วออกจากระบบและเข้าใหม่
         </div>
       )}
+      <BillingPriceContext.Provider value={profile.billingMode === "sponsored" ? 0 : ((profile.monthlyPriceSatang || 9900) / (profile.billingMode === "individual" ? 10 : 1)) / 100}>
       <FinanceReadOnlyContext.Provider value={!access && profile.role !== "supperAdmin"}>
       {children(
         profile,
@@ -643,6 +677,7 @@ export default function AuthGate({
         (value) => setProfile(toProfile(value)),
       )}
       </FinanceReadOnlyContext.Provider>
+      </BillingPriceContext.Provider>
     </>
   );
 }

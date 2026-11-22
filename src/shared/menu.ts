@@ -38,6 +38,7 @@ export const menuConfig: MenuItem[] = [
     role: "teacher",
   },
   { label: "ติดต่อเรา", path: "/finance/contact", role: "teacher" },
+  { label: "สมาชิกโรงเรียน", path: "/finance/school-team", role: "teacher", hidden: true },
   { label: "โปรไฟล์บัญชี", path: "/finance/profile", role: "teacher", hidden: true },
   { label: "แพ็กเกจและชำระเงิน", path: "/billing", role: "teacher", hidden: true },
   { label: "โปรไฟล์บัญชี", path: "/admin/profile", role: "superAdmin", hidden: true },

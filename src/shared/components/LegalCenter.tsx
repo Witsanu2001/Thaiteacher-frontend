@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Cookie, FileText, ShieldCheck, X } from "lucide-react";
+import { visitorConsent, setVisitorConsent } from "../funtion/visitorConsent";
 import {
   privacySections,
   termsIntroduction,
@@ -7,7 +8,7 @@ import {
 } from "../legalContent";
 
 type Panel = "terms" | "privacy" | "cookies";
-const storageKey = "thaiteacher-cookie-notice-v1";
+const storageKey = "thaiteacher-cookie-notice-v2";
 
 const section = (title: string, body: string) => (
   <section className="space-y-1">
@@ -23,6 +24,11 @@ export default function LegalCenter() {
     () => localStorage.getItem(storageKey) === "1",
   );
   const [panel, setPanel] = useState<Panel | null>(null);
+  const [analyticsAllowed, setAnalyticsAllowed] = useState(visitorConsent);
+  const chooseAnalytics = (allowed: boolean) => {
+    setVisitorConsent(allowed);
+    setAnalyticsAllowed(visitorConsent());
+  };
   useEffect(() => {
     const open = (event: Event) => {
       const target = (event as CustomEvent<Panel>).detail;
@@ -55,22 +61,24 @@ export default function LegalCenter() {
               <Cookie size={20} />
             </span>
             <div>
-              <h2 className="font-bold">การใช้งานข้อมูลบนเว็บ</h2>
+              <h2 className="font-bold">การใช้คุกกี้</h2>
               <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
                 ThaiTeacher
                 เก็บข้อมูลที่จำเป็นสำหรับการเข้าสู่ระบบและจดจำการตั้งค่าบนเครื่องของคุณ
-                ขณะนี้ไม่มีคุกกี้โฆษณาหรือวิเคราะห์ผู้ชม
+                กด “ยอมรับคุกกี้” เพื่ออนุญาตสถิติผู้เข้าชมแบบรหัสสุ่มเพิ่มเติม ไม่เก็บชื่อ อีเมล หรือ IP และไม่มีคุกกี้โฆษณา
               </p>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={acknowledge}
+              onClick={() => { chooseAnalytics(true); acknowledge(); }}
               className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
             >
-              รับทราบ
+              ยอมรับคุกกี้
             </button>
+            <button type="button" onClick={() => { chooseAnalytics(false); acknowledge(); }}
+              className="rounded-xl border border-blue-200 px-4 py-2.5 text-sm font-semibold text-blue-700 dark:border-blue-800 dark:text-blue-300">ใช้เฉพาะที่จำเป็น</button>
             <button
               type="button"
               onClick={() => setPanel("cookies")}
@@ -187,19 +195,16 @@ export default function LegalCenter() {
                   </div>
                   <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
                     <div className="flex items-center justify-between gap-3">
-                      <strong>โฆษณาและวิเคราะห์ผู้ชม</strong>
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:bg-slate-800">
-                        ไม่ได้ใช้งาน
-                      </span>
+                      <label className="flex w-full items-center justify-between gap-3 font-semibold">สถิติผู้เข้าชมแบบรหัสสุ่ม
+                        <input type="checkbox" checked={analyticsAllowed} onChange={event => chooseAnalytics(event.target.checked)} className="size-5 accent-blue-600" />
+                      </label>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-slate-500">
-                      ขณะนี้ไม่มีเครื่องมือประเภทนี้ให้เปิดหรือปิด
-                      หากเพิ่มในอนาคต จะขอให้คุณเลือกก่อนใช้งาน
+                      จดจำรหัสสุ่มของเบราว์เซอร์เพื่อสรุปยอดผู้เข้าชมก่อนล็อกอิน หน้าที่เปิด แหล่งที่มาและอุปกรณ์โดยคร่าว ไม่เก็บ IP หรือ URL ที่มีรหัสคำเชิญ ปิดได้ทุกเมื่อ ระบบเคารพ Do Not Track และ Global Privacy Control
                     </p>
                   </div>
                   <p className="text-xs leading-6 text-slate-500">
-                    การกด “รับทราบ” เป็นการปิดแถบแจ้งข้อมูล
-                    ไม่ใช่การยินยอมให้ใช้เครื่องมือโฆษณาหรือวิเคราะห์ผู้ชม
+                    ไม่มีเครื่องมือโฆษณา การปิดหน้าต่างไม่เปลี่ยนตัวเลือกสถิติที่คุณกำหนด
                   </p>
                 </>
               )}

@@ -18,6 +18,7 @@ import AdminSupportPage from "../modules/admin-support/AdminSupportPage";
 import AdminAnnouncementsPage from "../modules/admin-announcements/AdminAnnouncementsPage";
 import ContactPage from "../modules/contact/ContactPage";
 import ProfilePage from "../modules/profile/ProfilePage";
+import SchoolTeamPanel from "../modules/profile/SchoolTeamPanel";
 import ChatGiminiAIPage from "../modules/gimini-ai/ChatGiminiAIPage";
 import AdminHeader from "../shared/components/AdminHeader";
 
@@ -260,6 +261,7 @@ export default function AppRoutes({
         <Route path="exports" element={<Exports />} />
         <Route path="report-settings" element={<ReportForm />} />
         <Route path="contact" element={<ContactPage user={user} demo={demo} />} />
+        <Route path="school-team" element={user && !demo && !isAdmin ? <main className="w-full min-w-0 p-4 sm:p-6"><SchoolTeamPanel user={user} onProfileSaved={onProfileSaved} /></main> : <Navigate to="/finance/school-finance" replace />} />
         <Route path="profile" element={user && accountProfile && onProfileSaved ? <ProfilePage user={user} profile={accountProfile} onSaved={onProfileSaved} /> : <Navigate to="/finance/school-finance" replace />} />
         <Route path="guide" element={<Navigate to="/finance/school-finance?tour=1" replace />} />
         <Route path="gimini-ai" element={aiAllowed && user && !demo ? <ChatGiminiAIPage key={`${user.uid}:${viewing?.uid || "self"}`} storageKey={`${user.uid}:${viewing?.uid || "self"}`} getAccessToken={() => user.getIdToken()} viewAsUid={viewing?.uid} /> : <Navigate to="/finance/school-finance" replace />} />

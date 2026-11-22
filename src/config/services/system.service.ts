@@ -3,6 +3,7 @@ import type { User } from "firebase/auth";
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 export interface SystemSettings {
   trialDays: number;
+  monthlyPriceSatang: number;
   updatedAt?: string;
   updatedBy?: string;
 }
@@ -17,5 +18,5 @@ async function request(user: User, method: "GET" | "PATCH", data?: unknown) {
   return response.data;
 }
 export const getSystemSettings = (user: User) => request(user, "GET");
-export const saveSystemSettings = (user: User, trialDays: number) =>
-  request(user, "PATCH", { trialDays });
+export const saveSystemSettings = (user: User, trialDays: number, monthlyPriceSatang: number) =>
+  request(user, "PATCH", { trialDays, monthlyPriceSatang });

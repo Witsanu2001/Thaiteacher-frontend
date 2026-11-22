@@ -1,0 +1,15 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import ts from "typescript";
+const source = fs.readFileSync(new URL("../src/modules/admin-users/promotion.ts", import.meta.url), "utf8");
+const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
+const { promotionOf } = await import("data:text/javascript;base64," + Buffer.from(js).toString("base64"));
+const now = Date.parse("2026-11-22T00:00:00Z");
+const trial = { plan: "trial", createdAt: "2026-11-21T00:00:00Z", trialDays: 9, monthlyPriceSatang: 9900, status: "active" };
+test("shows account price and active nine-day trial", () => assert.deepEqual(promotionOf(trial, now), { price:"99 บาท/เดือน", trial:"ทดลอง 9 วัน" }));
+test("shows 69-baht thirty-day contract independently", () => assert.deepEqual(promotionOf({...trial, monthlyPriceSatang:6900, trialDays:30}, now), {price:"69 บาท/เดือน", trial:"ทดลอง 30 วัน"}));
+test("paid and lifetime plans never show trial text", () => { for (const plan of ["paid", "lifetime"]) assert.equal(promotionOf({...trial,plan}, now).trial, null); });
+test("expired trial disappears at its boundary", () => assert.equal(promotionOf(trial, Date.parse(trial.createdAt)+9*86400000).trial, null));
+test("legacy zero-valued terms retain original 99-baht nine-day contract", () => assert.deepEqual(promotionOf({...trial,monthlyPriceSatang:0,trialDays:0}, now), {price:"99 บาท/เดือน",trial:"ทดลอง 9 วัน"}));
+test("inactive accounts and school billing without personal trials hide trial text", () => { for (const change of [{status:"cleared"},{status:"clearing"},{billingMode:"individual"},{billingMode:"sponsored"}]) assert.equal(promotionOf({...trial,...change},now).trial, null); });

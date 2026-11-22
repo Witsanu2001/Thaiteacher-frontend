@@ -3,6 +3,7 @@ import type { User } from "firebase/auth";
 import type { UserProfile } from "./users.service";
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 export interface PaymentRequest {
+  analysis?: SlipAnalysis;
   id: string;
   status: "pending" | "approved" | "rejected";
   amount: number;
@@ -13,6 +14,23 @@ export interface PaymentRequest {
   reviewNote?: string;
   activatedUntil?: string;
 }
+
+export interface SlipAnalysis {
+  isSlip: boolean;
+  amountSatang: number | null;
+  currency: string;
+  receiver: string;
+  transferredAt: string;
+  reference: string;
+  notes: string;
+  amountMatches: boolean;
+  analyzedAt: string;
+  model: string;
+}
+
+export const analyzePaymentSlip = (user: User, payment: AdminPayment) =>
+  request<SlipAnalysis>(user, "POST",
+    `/admin/${encodeURIComponent(payment.uid)}/${encodeURIComponent(payment.id)}/analyze`);
 
 export interface AdminPayment extends PaymentRequest {
   uid: string;
@@ -31,7 +49,7 @@ async function request<T>(
     method,
     url: `${API_URL}/api/v1/payments${path}`,
     data,
-    timeout: 30000,
+    timeout: path.endsWith("/analyze") ? 60000 : 30000,
     thaiTeacherFresh: fresh,
     headers: { Authorization: `Bearer ${await user.getIdToken()}` },
   });
@@ -57,7 +75,7 @@ export const reviewPayment = (
     `/admin/${encodeURIComponent(payment.uid)}/${encodeURIComponent(payment.id)}/review`,
     { decision, reason },
   );
-export async function getAdminPaymentSlip(user: User, payment: AdminPayment) {
+export async function getAdminPaymentSlip(user: User, payment: Pick<AdminPayment, "uid" | "id">) {
   const response = await axios.get<Blob>(
     `${API_URL}/api/v1/payments/admin/${encodeURIComponent(payment.uid)}/${encodeURIComponent(payment.id)}/slip`,
     {
@@ -68,3 +86,6 @@ export async function getAdminPaymentSlip(user: User, payment: AdminPayment) {
   );
   return response.data;
 }
+
+export interface PaymentQuote { amountSatang: number; monthlyPriceSatang: number; billingMode: string; }
+export const getPaymentQuote = (user: User) => request<PaymentQuote>(user, "GET", "/quote", undefined, true);

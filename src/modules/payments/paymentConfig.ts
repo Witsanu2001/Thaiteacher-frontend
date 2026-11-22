@@ -1,7 +1,6 @@
 import qrPayment from "../../assets/qr_payment.jpg";
 
 export const paymentConfig = {
-  amount: 99,
   duration: "1 เดือน",
   qr: qrPayment,
   benefits: [

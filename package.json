@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test:api-requests": "node --test scripts/check-api-requests.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:school-invitations": "node --test scripts/check-school-invitations.mjs",
+    "test:user-promotions": "node --test scripts/check-user-promotions.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.5",
@@ -19,6 +21,7 @@
     "html-to-image": "^1.11.13",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.70.0",
+    "qrcode": "^1.5.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.5",
@@ -28,6 +31,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.19.2",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",

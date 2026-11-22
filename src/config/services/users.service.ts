@@ -6,7 +6,14 @@ const API_URL = import.meta.env.VITE_API_URL ?? "";
 export type UserPlan = "trial" | "paid" | "lifetime";
 
 export interface UserProfile {
+  schoolRemovalId?: string;
+  schoolRemovedFrom?: string;
   uid: string;
+  monthlyPriceSatang?: number;
+  billingMode?: "school" | "personal" | "individual" | "sponsored";
+  accessGranted?: boolean;
+  accessPlan?: "trial" | "paid" | "lifetime" | "expired";
+  accessPaidUntil?: string | null;
   displayName: string;
   email: string;
   phone: string;
@@ -81,7 +88,7 @@ export const acceptLegal = (user: User, version: string) =>
 export type AdminUserUpdate = Pick<
   UserProfile,
   "displayName" | "phone" | "position" | "schoolName" | "paidUntil" | "role"
-> & { plan: UserPlan };
+> & { plan: UserPlan; monthlyPriceSatang?: number; trialDays?: number };
 export const listUsers = (user: User) =>
   request<UserProfile[]>(user, "GET", "/admin");
 export interface AdminAnalytics {
@@ -110,6 +117,17 @@ export interface AdminAnalytics {
 }
 export const getAdminAnalytics = (user: User) =>
   request<AdminAnalytics>(user, "GET", "/admin/analytics");
+export interface VisitorDashboard {
+  today: number; week: number; month: number; sessions: number; views: number;
+  daily: { date: string; visitors: number; sessions: number; views: number }[];
+  pages: { name: string; count: number }[];
+  sources: { name: string; count: number }[];
+  devices: { name: string; count: number }[];
+  recent: { code: string; page: string; device: string; source: string; at: string }[];
+  truncated: boolean;
+}
+export const getVisitorDashboard = (user: User) =>
+  request<VisitorDashboard>(user, "GET", "/admin/visitors");
 export const recordVisit = (user: User, sessionId: string) =>
   request<void>(user, "POST", "/activity", { sessionId });
 export const adminUpdateUser = (

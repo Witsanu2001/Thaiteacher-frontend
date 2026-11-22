@@ -237,6 +237,16 @@ function Menu({
               <p className="px-3 pb-2 text-xs font-semibold text-slate-400 dark:text-slate-500">
                 บัญชีและการตั้งค่า
               </p>
+              {!isDemo && !isSupperAdmin && (
+                <button
+                  type="button"
+                  onClick={() => nav("สมาชิกโรงเรียน")}
+                  aria-current={active === "สมาชิกโรงเรียน" ? "page" : undefined}
+                  className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] hover:bg-blue-50 dark:hover:bg-slate-800 ${active === "สมาชิกโรงเรียน" ? "bg-blue-100 font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300" : "text-slate-600 dark:text-slate-300"}`}
+                >
+                  <UsersRound size={17} /> สมาชิกโรงเรียน
+                </button>
+              )}
               {!isDemo && (
                 <button
                   type="button"

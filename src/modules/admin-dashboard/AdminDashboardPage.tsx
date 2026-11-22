@@ -15,6 +15,7 @@ import {
   type UserProfile,
 } from "../../config/services/users.service";
 import AdminHeader from "../../shared/components/AdminHeader";
+import WebsiteVisitorsPanel from "./WebsiteVisitorsPanel";
 
 type Period = "day" | "week" | "month";
 const periods: { value: Period; label: string; detail: string }[] = [
@@ -168,6 +169,7 @@ export default function AdminDashboardPage({
         onToggleDark={onToggleDark}
       />
       <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
+        <WebsiteVisitorsPanel user={user} />
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">
             ThaiTeacher · ภาพรวมระบบ
